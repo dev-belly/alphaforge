@@ -163,6 +163,27 @@ class ResearchCopilot:
                 f"Brinson: allocation {attr.get('allocation'):+.2%}, selection "
                 f"{attr.get('selection'):+.2%} of {attr.get('total_active'):+.2%} active return"
             )
+        regime_data = self._get(results, "regime")
+        if regime_data:
+            counts = regime_data.get("counts", {})
+            if counts:
+                total = sum(counts.values()) or 1
+                dom = max(counts, key=counts.get)
+                findings.append(
+                    f"Regime: {dom} was the modal regime ({counts[dom] / total:.0%} of days); "
+                    f"split by Bull/Bear x High/Low-Vol."
+                )
+            stats = regime_data.get("return_stats", {})
+            if stats:
+                best = max(stats, key=lambda k: (stats[k] or {}).get("ann_return", float("-inf")))
+                worst = min(stats, key=lambda k: (stats[k] or {}).get("ann_return", float("inf")))
+                b = stats.get(best, {})
+                w = stats.get(worst, {})
+                findings.append(
+                    f"Regime return split: best {best} (ann {b.get('ann_return', float('nan')):+.2%}, "
+                    f"Sharpe {b.get('sharpe', float('nan')):.2f}); worst {worst} "
+                    f"(ann {w.get('ann_return', float('nan')):+.2%})."
+                )
         return findings, warnings
 
     def _repro_checks(self, results: dict[str, ToolResult], state: dict) -> list[str]:

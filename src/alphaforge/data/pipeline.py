@@ -92,6 +92,12 @@ class DataPipeline:
                 mapping = industry.set_index("symbol")["industry"]
                 prices.loc[missing, "industry"] = prices.loc[missing, "symbol"].map(mapping)
 
+        # --- benchmark return series ------------------------------------
+        # Stored as *daily returns* (not price levels) so the backtest engine,
+        # factor attribution and market-regime classification can consume it
+        # directly. Providers that cannot supply a benchmark yield None.
+        benchmark = _fetch_benchmark_returns(self.provider, index_id, start, end)
+
         with Timer("etl.universe", log):
             universe = Universe(self.universe_config).build(prices, constituents)
 
@@ -107,6 +113,7 @@ class DataPipeline:
                 "survivorship": Universe.survivorship_diagnostics(prices, universe),
                 "index_id": index_id,
             },
+            benchmark=benchmark,
         )
 
         if persist:
@@ -122,13 +129,13 @@ class DataPipeline:
                     self.store.write("industry", industry)
                 self.store.write("universe", _universe_long(universe))
                 self.store.write("data_quality", quality.to_frame())
-                try:
-                    bench = self.provider.benchmark_prices(index_id, start, end)
+                if benchmark is not None and len(benchmark):
                     self.store.write(
-                        "benchmark", pd.DataFrame({"date": bench.index, "value": bench.to_numpy()})
+                        "benchmark",
+                        pd.DataFrame(
+                            {"date": benchmark.index, "value": benchmark.to_numpy()}
+                        ),
                     )
-                except NotImplementedError:
-                    log.info("Provider supplies no benchmark series")
                 self.store.register_views()
 
         log.info(
@@ -165,13 +172,43 @@ def load_bundle(root: str | Path = "data/processed") -> DataBundle:
     fundamentals = safe("fundamentals")
     if not fundamentals.empty and "report_date" in fundamentals.columns:
         fundamentals["report_date"] = pd.to_datetime(fundamentals["report_date"])
+
+    benchmark = None
+    try:
+        bm = store.read("benchmark")
+        if not bm.empty:
+            bm["date"] = pd.to_datetime(bm["date"])
+            benchmark = pd.Series(
+                bm["value"].to_numpy(), index=pd.DatetimeIndex(bm["date"]), name="benchmark"
+            ).sort_index()
+    except FileNotFoundError:
+        log.info("No persisted benchmark series found")
+
     return DataBundle(
         prices=prices,
         fundamentals=fundamentals,
         macro=safe("macro"),
         constituents=constituents,
         metadata={"source": str(root), "provenance": "PERSISTED"},
+        benchmark=benchmark,
     )
+
+
+def _fetch_benchmark_returns(
+    provider: DataProvider, index_id: str, start: str, end: str
+) -> pd.Series | None:
+    """Fetch the provider benchmark and return it as a daily *return* series."""
+    try:
+        bench = provider.benchmark_prices(index_id, start, end)
+    except NotImplementedError:
+        log.info("Provider supplies no benchmark series")
+        return None
+    if bench is None or len(bench) == 0:
+        return None
+    bench = pd.Series(bench).sort_index()
+    rets = bench.pct_change(fill_method=None).dropna()
+    rets.name = "benchmark"
+    return rets
 
 
 __all__ = ["DataPipeline", "PipelineResult", "load_bundle"]

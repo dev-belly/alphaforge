@@ -9,6 +9,7 @@ them.  If a stage was not run, the tool returns ``None`` and the copilot says so
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 
@@ -105,6 +106,41 @@ def config_snapshot(config: dict) -> ToolResult:
     return ToolResult("config", True, config, "effective configuration")
 
 
+def analyze_market_regime(regime: pd.Series, backtest: Any = None) -> ToolResult:
+    """Cross-sectional regime split: label counts + per-regime portfolio stats.
+
+    ``regime`` is the per-date label Series produced by the pipeline.  When the
+    backtest object is supplied its realised return series is split by regime so
+    the copilot can report how the strategy behaved in Bull/Bear x High/Low-Vol
+    regimes.
+    """
+    if regime is None:
+        return ToolResult("regime", False, None, "regime not run")
+    try:
+        from alphaforge.risk.regime import REGIME_LABELS, regime_statistics
+
+        counts = {str(k): int(v) for k, v in regime.value_counts(dropna=True).items()}
+        data: dict = {"labels": list(REGIME_LABELS), "counts": counts}
+        if backtest is not None and getattr(backtest, "returns", None) is not None:
+            rets = backtest.returns
+            rets = rets.dropna() if isinstance(rets, pd.Series) else rets
+            # Daily regime labels -> (monthly) backtest returns: align by exact
+            # date, fall back to last known regime as-of that date.
+            reg_aligned = regime.reindex(rets.index)
+            miss = reg_aligned.isna()
+            if bool(miss.any()):
+                reg_aligned = reg_aligned.fillna(regime.asof(rets.index))
+            data["return_stats"] = regime_statistics(rets, reg_aligned)
+        return ToolResult(
+            "regime",
+            True,
+            data,
+            f"regimes: {counts}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return ToolResult("regime", False, None, str(exc))
+
+
 # --------------------------------------------------------------------------
 CATALOG: dict[str, callable] = {
     "factors": factor_summary_table,
@@ -113,6 +149,7 @@ CATALOG: dict[str, callable] = {
     "diagnostics": backtest_diagnostics,
     "risk": risk_decomposition,
     "attribution": attribution_summary,
+    "regime": analyze_market_regime,
     "quality": data_quality,
     "config": config_snapshot,
 }
@@ -123,7 +160,7 @@ def run_tools(state: dict) -> dict[str, ToolResult]:
 
     ``state`` keys mirror the pipeline outputs: ``library``, ``model_eval``,
     ``backtest``, ``weights``, ``risk_result``, ``brinson``, ``factor_attr``,
-    ``quality``, ``config``.
+    ``regime``, ``quality``, ``config``.
     """
     results: dict[str, ToolResult] = {}
     if "library" in state:
@@ -137,6 +174,8 @@ def run_tools(state: dict) -> dict[str, ToolResult]:
         results["risk"] = risk_decomposition(state["weights"], state["risk_result"])
     if "brinson" in state or "factor_attr" in state:
         results["attribution"] = attribution_summary(state.get("brinson"), state.get("factor_attr"))
+    if "regime" in state:
+        results["regime"] = analyze_market_regime(state["regime"], state.get("backtest"))
     if "quality" in state:
         results["quality"] = data_quality(state["quality"])
     if "config" in state:

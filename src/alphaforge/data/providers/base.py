@@ -83,6 +83,7 @@ class DataBundle:
     macro: pd.DataFrame
     constituents: pd.DataFrame
     metadata: dict = None  # type: ignore[assignment]
+    benchmark: pd.Series | None = None  # daily *return* series for relative analytics
 
     def __post_init__(self) -> None:
         if self.metadata is None:

@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -149,6 +150,18 @@ def _serialize_state(state: ResearchState) -> dict:
             "text": state.briefing.to_text(),
         }
 
+    regime = None
+    if (
+        state.regime is not None
+        and isinstance(state.regime, pd.Series)
+        and not state.regime.dropna().empty
+    ):
+        regime = {
+            "counts": {str(k): int(v) for k, v in state.regime.value_counts(dropna=True).items()},
+            "stats": _clean(state.diagnostics.get("regime_stats", {})),
+            "factor_ic": _clean(state.diagnostics.get("regime_factor_ic", {})),
+        }
+
     return _clean(
         {
             "config_keys": sorted(cfg.keys()),
@@ -163,6 +176,7 @@ def _serialize_state(state: ResearchState) -> dict:
             "backtest_metrics": bt.metrics if bt is not None else None,
             "brinson": brinson,
             "factor_attribution": factor_attr,
+            "regime": regime,
             "briefing": briefing,
             "report_path": str(state.report_path) if state.report_path else None,
         }
@@ -294,6 +308,20 @@ def briefing() -> dict:
     }
 
 
+@app.get("/regime")
+def regime() -> dict:
+    r = _STATE["state"].regime if _STATE["state"] else None
+    if r is None or not (isinstance(r, pd.Series) and not r.dropna().empty):
+        raise HTTPException(status_code=404, detail="No regime cached. POST /research/run first.")
+    return _clean(
+        {
+            "counts": {str(k): int(v) for k, v in r.value_counts(dropna=True).items()},
+            "stats": _STATE["state"].diagnostics.get("regime_stats", {}),
+            "factor_ic": _STATE["state"].diagnostics.get("regime_factor_ic", {}),
+        }
+    )
+
+
 @app.get("/report")
 def report() -> FileResponse:
     if _STATE["state"] is None or not _STATE["state"].report_path:
@@ -326,5 +354,6 @@ __all__ = [
     "attribution",
     "risk",
     "briefing",
+    "regime",
     "report",
 ]

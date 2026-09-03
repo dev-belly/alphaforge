@@ -30,6 +30,11 @@ from alphaforge.models.pipeline import AlphaModelPipeline, signal_panel
 from alphaforge.portfolio.constructor import PortfolioConstructor
 from alphaforge.reporting import ReportInputs, write_report
 from alphaforge.risk.factor_model import FundamentalRiskModel, RiskModelConfig
+from alphaforge.risk.regime import (
+    classify_regime,
+    factor_performance_by_regime,
+    regime_statistics,
+)
 from alphaforge.utils.config import Config
 from alphaforge.utils.logging import Timer, get_logger
 
@@ -52,6 +57,7 @@ class ResearchState:
     weights: pd.DataFrame | None = None
     brinson: Any = None
     factor_attr: Any = None
+    regime: Any = None
     report_path: Path | None = None
     briefing: Any = None
     diagnostics: dict = field(default_factory=dict)
@@ -65,6 +71,7 @@ class ResearchState:
             "risk_result": self.risk_result,
             "brinson": self.brinson,
             "factor_attr": self.factor_attr,
+            "regime": self.regime,
             "config": self.config,
         }
 
@@ -109,9 +116,9 @@ class ResearchPipeline:
         d["etl_symbols"] = int(res.bundle.prices["symbol"].nunique())
 
         # -- 2. panel ---------------------------------------------------
-        benchmark = res.bundle.metadata.get("benchmark")
-        if benchmark is not None:
-            benchmark = pd.Series(benchmark) if not isinstance(benchmark, pd.Series) else benchmark
+        benchmark = res.bundle.benchmark
+        if benchmark is not None and not isinstance(benchmark, pd.Series):
+            benchmark = pd.Series(benchmark)
         panel = build_panel(res.bundle.prices, universe=res.universe, benchmark=benchmark)
         state.panel = panel
         d["panel_dates"] = len(panel.dates)
@@ -172,6 +179,42 @@ class ResearchPipeline:
         state.weights = bt.weights
         d.update(bt.diagnostics)
 
+        # -- 6b. market regime -----------------------------------------
+        try:
+            # Classify on the *full daily* benchmark (panel.benchmark) so there
+            # is enough trailing history for the vol/trend windows. The backtest
+            # benchmark is reindexed to monthly rebalance dates and is too short
+            # (> 200 days are required by the classifier).
+            bench_ret = (
+                panel.benchmark.dropna()
+                if getattr(panel, "benchmark", None) is not None
+                else None
+            )
+            if bench_ret is not None and len(bench_ret) >= 200:
+                state.regime = classify_regime(bench_ret)
+                # Per-regime portfolio stats: align the daily regime labels onto
+                # the (monthly) backtest return dates. Use exact-label match with
+                # an as-of (last known regime) fallback for months whose exact
+                # date is not in the daily benchmark index.
+                bt_ret = bt.returns.dropna()
+                reg_aligned = state.regime.reindex(bt_ret.index)
+                miss = reg_aligned.isna()
+                if bool(miss.any()):
+                    reg_aligned = reg_aligned.fillna(state.regime.asof(bt_ret.index))
+                d["regime_stats"] = regime_statistics(bt_ret, reg_aligned)
+                if (
+                    getattr(wf, "evaluation", None) is not None
+                    and getattr(wf.evaluation, "ic_series", None) is not None
+                ):
+                    d["regime_factor_ic"] = factor_performance_by_regime(
+                        wf.evaluation.ic_series, state.regime
+                    )
+                d["regime_label_counts"] = {
+                    str(k): int(v) for k, v in state.regime.value_counts(dropna=True).items()
+                }
+        except Exception as exc:  # noqa: BLE001
+            log.warning(f"Market regime analysis skipped: {exc}")
+
         # -- 7. attribution --------------------------------------------
         try:
             bench_w = (
@@ -217,6 +260,8 @@ class ResearchPipeline:
                 ),
                 brinson=state.brinson,
                 factor_attribution=state.factor_attr,
+                regime=state.regime,
+                regime_stats=d.get("regime_stats"),
                 notes=self._notes(state),
             )
             # attach covariance for the risk-contribution chart

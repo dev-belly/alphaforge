@@ -63,6 +63,8 @@ class ReportInputs:
     risk_decomposition: Any | None = None
     brinson: Any | None = None
     factor_attribution: Any | None = None
+    regime: Any | None = None
+    regime_stats: dict | None = None
     notes: list[str] = field(default_factory=list)
 
 
@@ -185,7 +187,9 @@ ul.notes {{ font-size: 12.5px; color: #444; }}
 {"<div><h2>Attribution (Factor Bets)</h2>" + _table(_attr_table(inputs.factor_attribution)) + "</div>" if inputs.factor_attribution is not None else ""}
 </div>
 
-{("<h2>Brinson Attribution</h2>" + brinson_b64 + _table(inputs.brinson.by_sector)) if inputs.brinson is not None else ""}
+    {("<h2>Brinson Attribution</h2>" + brinson_b64 + _table(inputs.brinson.by_sector)) if inputs.brinson is not None else ""}
+
+{_regime_section(inputs.regime, inputs.regime_stats)}
 
 <h2>Notes &amp; Caveats</h2>
 <ul class="notes">{notes_html}</ul>
@@ -224,6 +228,50 @@ def _cov_from_risk(inputs: ReportInputs):
         return inputs.risk_decomposition.attrs.get("covariance")
     except Exception:  # noqa: BLE001
         return None
+
+
+def _regime_section(regime: Any, stats: dict | None) -> str:
+    if regime is None:
+        return ""
+    if not isinstance(regime, pd.Series) or regime.dropna().empty:
+        return ""
+    counts = {str(k): int(v) for k, v in regime.value_counts(dropna=True).items()}
+    total = sum(counts.values()) or 1
+    bar = "".join(
+        f"<div style='margin:2px 0'><span style='display:inline-block;width:90px'>{html.escape(k)}</span>"
+        f"<span style='display:inline-block;height:12px;background:#1f4e79;border-radius:2px;width:{max(2, int(v / total * 200))}px'></span>"
+        f" {v} ({v / total:.0%})</div>"
+        for k, v in counts.items()
+    )
+    table = ""
+    if stats:
+        rows = []
+        for lab, s in stats.items():
+            rows.append(
+                "<tr>"
+                + "".join(
+                    f"<td>{html.escape(str(x))}</td>"
+                    for x in [
+                        lab,
+                        s.get("n_days"),
+                        _pct(s.get("ann_return")),
+                        _pct(s.get("ann_vol")),
+                        _fmt(s.get("sharpe")),
+                    ]
+                )
+                + "</tr>"
+            )
+        table = (
+            "<table class='data'><thead><tr><th>regime</th><th>n_days</th><th>ann_return</th>"
+            "<th>ann_vol</th><th>sharpe</th></tr></thead><tbody>"
+            + "".join(rows)
+            + "</tbody></table>"
+        )
+    return (
+        "<h2>Market Regime</h2>"
+        "<p class='sub'>Per-day regime from benchmark trend &times; volatility (no future data).</p>"
+        f"<div>{bar}</div>{table}"
+    )
 
 
 def _attr_table(fa) -> pd.DataFrame:

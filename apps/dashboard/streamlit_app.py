@@ -199,6 +199,48 @@ def main() -> None:
     else:
         st.info("No factor summary produced.")
 
+    # ---- market regime ------------------------------------------------------
+    st.subheader("Market Regime")
+    regime = state.regime
+    if regime is not None and not (isinstance(regime, pd.Series) and regime.dropna().empty):
+        reg_counts = regime.value_counts(dropna=True)
+        reg_stats = state.diagnostics.get("regime_stats", {})
+        try:
+            import plotly.express as px
+
+            bc = reg_counts.reset_index()
+            bc.columns = ["regime", "n_days"]
+            fig = px.bar(bc, x="regime", y="n_days", title="Trading days by regime", color="regime")
+            fig.update_layout(height=300, margin=dict(l=30, r=20, t=30, b=30), xaxis_tickangle=-30)
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception:  # noqa: BLE001
+            st.dataframe(reg_counts)
+        if reg_stats:
+            rs_df = pd.DataFrame(
+                [
+                    {
+                        "regime": lab,
+                        "n_days": s.get("n_days"),
+                        "ann_return": s.get("ann_return"),
+                        "ann_vol": s.get("ann_vol"),
+                        "sharpe": s.get("sharpe"),
+                    }
+                    for lab, s in reg_stats.items()
+                ]
+            )
+            st.dataframe(
+                rs_df,
+                use_container_width=True,
+                height=200,
+                column_config={
+                    "ann_return": st.column_config.NumberColumn(format="%.2%"),
+                    "ann_vol": st.column_config.NumberColumn(format="%.2%"),
+                    "sharpe": st.column_config.NumberColumn(format="%.2f"),
+                },
+            )
+    else:
+        st.info("Market regime not available for this run.")
+
     # ---- risk + attribution ------------------------------------------------
     rcol1, rcol2 = st.columns(2)
     with rcol1:
