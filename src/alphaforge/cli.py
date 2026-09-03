@@ -30,6 +30,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--provider", default=None, help="Data provider: sample | local | yahoo | ...")
     p.add_argument(
+        "--symbols",
+        default=None,
+        help="Comma-separated universe (e.g. AAPL,MSFT). Live providers fall "
+        "back to a curated default universe when omitted.",
+    )
+    p.add_argument(
         "--report-dir", default="research/reports", help="Where to write the HTML report."
     )
     p.add_argument("--persist", action="store_true", help="Persist the processed dataset to disk.")
@@ -75,12 +81,17 @@ def main(argv: list[str] | None = None) -> int:
 
     from alphaforge.pipeline import ResearchPipeline
 
+    symbols = (
+        [s.strip().upper() for s in args.symbols.split(",") if s.strip()] if args.symbols else None
+    )
+
     state = ResearchPipeline(config).run(
         start=args.start,
         end=args.end,
         model_type=args.model,
         report_dir=args.report_dir,
         persist=args.persist,
+        symbols=symbols,
     )
 
     if state.backtest is not None:
