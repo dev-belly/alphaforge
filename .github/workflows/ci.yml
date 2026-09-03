@@ -29,11 +29,14 @@ jobs:
 
       - name: Lint
         run: |
-          ruff check src apps tests
-          ruff format --check src apps tests
+          ruff check src apps tests scripts
+          ruff format --check src apps tests scripts
 
       - name: Type-check
         run: mypy src apps/api
+
+      - name: Docs integrity (mkdocs nav resolves)
+        run: python scripts/check_docs.py
 
       - name: Unit & regression tests (fast)
         run: pytest -m "not slow"

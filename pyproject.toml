@@ -78,7 +78,7 @@ markers = ["slow: marks tests as slow", "integration: integration tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-src = ["src", "tests", "apps"]
+src = ["src", "tests", "apps", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "N"]

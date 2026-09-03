@@ -79,7 +79,9 @@ def main() -> int:
     # ---------------- factors ----------------
     fs = state.factor_summary
     if fs is not None and len(fs):
-        cols = [c for c in ("ic_mean", "rank_ic_mean", "icir", "ic_std", "t_stat") if c in fs.columns]
+        cols = [
+            c for c in ("ic_mean", "rank_ic_mean", "icir", "ic_std", "t_stat") if c in fs.columns
+        ]
         ranked = fs.sort_values("rank_ic_mean", ascending=False)
         out["factors"] = {
             "n_factors": int(len(fs)),
@@ -149,7 +151,9 @@ def main() -> int:
             "interaction": _f(br.interaction),
             "total_active": _f(br.total_active),
             "sum_of_terms": _f(br.allocation + br.selection + br.interaction),
-            "approximation_gap": _f(abs(br.allocation + br.selection + br.interaction - br.total_active)),
+            "approximation_gap": _f(
+                abs(br.allocation + br.selection + br.interaction - br.total_active)
+            ),
             "by_sector": json.loads(br.by_sector.head(15).to_json(orient="records"))
             if br.by_sector is not None and len(br.by_sector)
             else [],

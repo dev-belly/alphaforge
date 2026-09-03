@@ -4,13 +4,13 @@
 PYTHON ?= python3
 PIP    ?= pip
 
-.PHONY: help install install-dev test test-fast lint fmt format ci run demo serve-api run-api dashboard run-dashboard assets docker-up docker-down docs clean
+.PHONY: help install install-dev test test-fast lint fmt format ci run demo serve-api run-api dashboard run-dashboard assets docs-check docker-up docker-down docs clean
 
 .DEFAULT_GOAL := help
 
 help:  ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Install the package (core only)
 	$(PIP) install -e .
@@ -25,12 +25,12 @@ test-fast:  ## Run only the fast unit + regression suite
 	pytest -m "not slow"
 
 lint:  ## Lint with ruff
-	ruff check src apps tests
-	ruff format --check src apps tests
+	ruff check src apps tests scripts
+	ruff format --check src apps tests scripts
 
 fmt:  ## Auto-format with ruff + black
-	ruff check --fix src apps tests
-	ruff format src apps tests
+	ruff check --fix src apps tests scripts
+	ruff format src apps tests scripts
 
 format: fmt  ## Alias for `make fmt`
 
@@ -56,6 +56,9 @@ run-dashboard: dashboard  ## Alias for `make dashboard`
 
 assets:  ## Render sample-output charts into assets/ (headless; needs the viz extra)
 	$(PYTHON) scripts/make_assets.py
+
+docs-check:  ## Validate that every mkdocs.yml nav reference resolves to a non-empty file
+	$(PYTHON) scripts/check_docs.py
 
 docker-up:  ## Build and start API + dashboard with docker compose
 	docker compose up --build

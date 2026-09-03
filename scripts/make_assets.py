@@ -9,12 +9,13 @@ without needing a browser screenshot. Deterministic given the global seed.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from pathlib import Path
 
 from alphaforge.pipeline import ResearchPipeline
 from alphaforge.utils.config import Config, set_global_seed
@@ -78,7 +79,7 @@ def _main() -> None:
     rs = state.diagnostics.get("regime_stats", {})
     if rs:
         labels = list(rs.keys())
-        ann = [float(rs[l].get("ann_return", np.nan)) for l in labels]
+        ann = [float(rs[lab].get("ann_return", np.nan)) for lab in labels]
         fig, ax = plt.subplots(figsize=(8, 4))
         colors = [TEAL if v >= 0 else RED for v in ann]
         ax.bar(labels, ann, color=colors)

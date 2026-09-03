@@ -66,9 +66,7 @@ def main() -> int:
         overrides["reporting"] = {"title": "AlphaForge Real-Data Report (EastMoney A-share)"}
 
     config = Config.load(overrides=overrides)
-    symbols = (
-        [s.strip() for s in args.symbols.split(",") if s.strip()] if args.symbols else None
-    )
+    symbols = [s.strip() for s in args.symbols.split(",") if s.strip()] if args.symbols else None
 
     log.info(
         f"Real backtest: provider={args.provider} universe={args.universe} "
