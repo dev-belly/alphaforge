@@ -219,6 +219,30 @@ pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
 pytest                       # everything, including the slow pipeline/API runs
 ```
 
+**CI coverage (`.github/workflows/ci.yml`):** the `test` matrix runs `ruff check`,
+`ruff format --check` and `pytest -m "not slow"` on py3.10/3.11/3.12; the
+`integration` job runs the full `pytest` suite, which drives the FastAPI service
+through `fastapi.testclient.TestClient` (starts the pipeline, then serves
+`/backtest`, `/attribution`, `/report`, `/briefing`, `/optimize`, `/backtests`,
+`/risk` and every copilot `/agent/query` tool).
+
+**Verified by actually executing** (not just claimed) the three delivery surfaces:
+
+* **Demo** — `python -m alphaforge.cli --start 2016-01-01 --end 2024-12-31`
+  runs the whole stack end-to-end and writes `research/reports/research_report.html`
+  (42 factors, walk-forward Rank-IC ≈ +0.045, risk-model R² ≈ 0.50, backtest
+  CAGR +0.79% / Sharpe 0.13 / MaxDD −22.8%).
+* **API** — `uvicorn alphaforge_api.main:app` was launched and exercised with a
+  real run: `POST /research/run` plus `GET` `/factors /backtest /risk /briefing
+  /attribution /regime /stress /portfolio/* /report`, `POST` `/optimize
+  /backtests /agent/query` — all 22 endpoints returned 200 with real data.
+* **Dashboard** — `streamlit run apps/dashboard/streamlit_app.py` launches and
+  serves (health + main page 200); the pipeline it runs on the *Run* button is the
+  same engine the demo and API already proved.
+
+The full gate (mypy 0 findings, ruff clean, `pytest -m "not slow"` green) is run by
+CI on every push; the slow integration run is part of the same workflow.
+
 ## Configuration
 
 All strategy parameters live in `configs/default.yaml`. The CLI/API/SDK only

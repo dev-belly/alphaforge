@@ -32,6 +32,9 @@ jobs:
           ruff check src apps tests
           ruff format --check src apps tests
 
+      - name: Type-check
+        run: mypy src apps/api
+
       - name: Unit & regression tests (fast)
         run: pytest -m "not slow"
 

@@ -71,3 +71,12 @@ def test_run_then_serve(client):
     r_bt = client.post("/backtests", json={"cost_rate": 0.001, "rebalance": "monthly"})
     assert r_bt.status_code == 200, r_bt.text
     assert r_bt.json()["summary"] is not None
+
+    # The copilot's deterministic tool layer must serve every stage.  Regresses
+    # the bug where the `risk` tool 404'd because the pipeline stores `weights`
+    # as a (assets x dates) DataFrame while the tool assumed a pd.Series.
+    assert client.get("/risk").status_code == 200
+    for tool in ("model", "risk", "factors", "stress", "regime", "attribution"):
+        r_q = client.post("/agent/query", json={"tool": tool})
+        assert r_q.status_code == 200, r_q.text
+        assert r_q.json()["ok"] is True

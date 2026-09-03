@@ -64,11 +64,15 @@ def backtest_diagnostics(backtest) -> ToolResult:
     return ToolResult("diagnostics", True, dict(backtest.diagnostics), "run diagnostics")
 
 
-def risk_decomposition(weights: pd.Series, risk_result) -> ToolResult:
+def risk_decomposition(weights: pd.Series | pd.DataFrame, risk_result) -> ToolResult:
     """Factor and specific risk split, plus per-factor exposure."""
     if risk_result is None:
         return ToolResult("risk", False, None, "risk model not run")
     try:
+        # The pipeline stores weights as a (assets x dates) DataFrame; the agent
+        # only needs the latest rebalance's book. Normalise either input shape.
+        if isinstance(weights, pd.DataFrame):
+            weights = weights.iloc[:, -1]
         rc = weights.reindex(risk_result.exposures.index).fillna(0.0)
         decomp = {
             "r_squared": float(risk_result.r_squared),
