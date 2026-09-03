@@ -190,7 +190,7 @@ class ResearchCopilot:
                 nm: d.get("pnl_pct", 0.0) for nm, d in stress_data.items() if isinstance(d, dict)
             }
             if losses:
-                worst_nm = min(losses, key=losses.get)
+                worst_nm = min(losses, key=lambda k: losses[k])
                 findings.append(
                     f"Stress: {len(losses)} scenarios; worst {worst_nm} {losses[worst_nm]:+.2%}."
                 )
@@ -214,7 +214,8 @@ class ResearchCopilot:
                 f"date (look-ahead guarded)."
             )
         if "quality" in results and results["quality"].ok:
-            q = results["quality"].data or {}
+            data = results["quality"].data
+            q = data if isinstance(data, dict) else {}
             if q.get("survivorship_flagged"):
                 checks.append(
                     "Survivorship bias is flagged in the data report (point-in-time only)."

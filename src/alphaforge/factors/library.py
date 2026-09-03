@@ -125,10 +125,11 @@ class FactorLibrary:
             raise ValueError("No factors available to composite")
         w = {n: float(weights.get(n, 1.0)) if weights else 1.0 for n in targets}
         total = sum(abs(v) for v in w.values()) or 1.0
-        acc = None
+        acc: pd.Series | None = None
         for n in targets:
             part = self.processed[n] * (w[n] / total)
             acc = part if acc is None else acc.add(part, fill_value=0.0)
+        assert acc is not None
         z = acc.sub(acc.mean(axis=1), axis=0).div(acc.std(axis=1).replace(0, np.nan), axis=0)
         return z.fillna(0.0)
 

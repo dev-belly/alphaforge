@@ -158,6 +158,7 @@ class ResearchPipeline:
         state.dataset = ds
         wf = AlphaModelPipeline.from_config(ds, cfg).run(model_type=model_type)
         state.model_eval = wf.evaluation
+        assert wf.evaluation is not None
         state.signal_panel = signal_panel(wf.predictions, panel.dates, panel.symbols)
         d["rank_ic_mean"] = wf.evaluation.summary.get("rank_ic_mean")
 
@@ -193,9 +194,8 @@ class ResearchPipeline:
             # is enough trailing history for the vol/trend windows. The backtest
             # benchmark is reindexed to monthly rebalance dates and is too short
             # (> 200 days are required by the classifier).
-            bench_ret = (
-                panel.benchmark.dropna() if getattr(panel, "benchmark", None) is not None else None
-            )
+            bm = getattr(panel, "benchmark", None)
+            bench_ret = bm.dropna() if bm is not None else None
             if bench_ret is not None and len(bench_ret) >= 200:
                 state.regime = classify_regime(bench_ret)
                 # Per-regime portfolio stats: align the daily regime labels onto

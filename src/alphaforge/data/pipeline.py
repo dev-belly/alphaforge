@@ -25,18 +25,24 @@ log = get_logger("data.pipeline")
 
 def _resolve_symbols(
     provider: DataProvider, symbols: Sequence[str] | None, index_id: str
-) -> Sequence[str] | None:
+) -> Sequence[str]:
     """Pick the universe for this run.
 
     * An explicit ``symbols`` list always wins (lets callers run any basket).
     * The synthetic ``sample`` provider ignores the argument and generates its
-      own cross-section, so we return ``None`` for it.
+      own cross-section; we return its universe so the resolved symbols stay
+      non-None and line up with the typed fetch APIs.
     * The live vendors (yahoo / akshare) need a concrete list; when none is
       given we fall back to a curated, always-liquid default universe so a real
       backtest runs with zero configuration.
     """
     if symbols:
         return list(symbols)
+    if provider.name in {"sample"}:
+        # The sample provider generates its own cross-section and ignores the
+        # argument; returning its universe keeps the resolved symbols non-None
+        # so they line up with the typed fetch APIs (which require a sequence).
+        return list(provider.symbols())
     if provider.name in {"yahoo"}:
         from alphaforge.data.providers.vendors import YAHOO_DEFAULT_UNIVERSE
 
@@ -45,7 +51,7 @@ def _resolve_symbols(
         from alphaforge.data.providers.vendors import AKSHARE_DEFAULT_UNIVERSE
 
         return list(AKSHARE_DEFAULT_UNIVERSE)
-    return None
+    raise ValueError(f"Unsupported data provider: {provider.name!r}")
 
 
 @dataclass
@@ -61,7 +67,7 @@ class PipelineResult:
             "symbols": int(self.bundle.prices["symbol"].nunique()),
             "start": str(self.bundle.prices["date"].min().date()),
             "end": str(self.bundle.prices["date"].max().date()),
-            "quality": self.quality.to_dict(),  # type: ignore[union-attr]
+            "quality": self.quality.to_dict(),  # type: ignore[attr-defined]
         }
 
 

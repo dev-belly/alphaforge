@@ -308,14 +308,20 @@ def _avg_weights(weights: pd.DataFrame) -> pd.Series:
 
 def _quantile_from_model(inputs: ReportInputs):
     try:
-        return inputs.model_summary["quantile_returns"]
+        ms = inputs.model_summary
+        if ms is None:
+            return pd.DataFrame()
+        return ms["quantile_returns"]
     except Exception:  # noqa: BLE001
         return pd.DataFrame()
 
 
 def _cov_from_risk(inputs: ReportInputs):
     try:
-        return inputs.risk_decomposition.attrs.get("covariance")
+        rd = inputs.risk_decomposition
+        if rd is None:
+            return None
+        return rd.attrs.get("covariance")
     except Exception:  # noqa: BLE001
         return None
 

@@ -62,10 +62,10 @@ def blend_expected_returns(
     names = list(components)
     w = {n: float((weights or {}).get(n, 1.0)) for n in names}
     total = sum(abs(v) for v in w.values()) or 1.0
-    acc = None
-    for n in names:
+    acc = components[names[0]] * (w[names[0]] / total)
+    for n in names[1:]:
         part = components[n] * (w[n] / total)
-        acc = part if acc is None else acc.add(part, fill_value=0.0)
+        acc = acc.add(part, fill_value=0.0)
     std = acc.std()
     if std and std > 0:
         acc = acc / std

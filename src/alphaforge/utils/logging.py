@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from loguru import logger
 
@@ -81,7 +81,7 @@ class Timer:
         self.log.info(f"[stage] {self.stage} - start")
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(self, exc_type, exc, tb) -> Literal[False]:
         import time
 
         self.elapsed = time.perf_counter() - self._t0

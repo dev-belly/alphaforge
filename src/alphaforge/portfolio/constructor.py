@@ -175,6 +175,7 @@ class PortfolioConstructor:
         constraint the solver can return a hotter book than the budget allows;
         de-levering into cash is the honest fallback.
         """
+        assert self.optimizer_config.target_volatility is not None
         target = float(self.optimizer_config.target_volatility)
         realised = float(result.diagnostics.get("ex_ante_vol", 0.0))
         if realised <= target or realised <= 0:

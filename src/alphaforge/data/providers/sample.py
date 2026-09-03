@@ -122,36 +122,36 @@ class SampleDataProvider(DataProvider):
     ) -> pd.DataFrame:
         if "prices" not in self._cache:
             self._cache["prices"] = self._simulate_prices()
-        return self._cache["prices"].copy()  # type: ignore[union-attr]
+        return self._cache["prices"].copy()  # type: ignore[attr-defined]
 
     def fetch_fundamentals(
         self, symbols: Sequence[str] | None = None, start=None, end=None
     ) -> pd.DataFrame:
         if "fundamentals" not in self._cache:
             self._cache["fundamentals"] = self._simulate_fundamentals()
-        return self._cache["fundamentals"].copy()  # type: ignore[union-attr]
+        return self._cache["fundamentals"].copy()  # type: ignore[attr-defined]
 
     def fetch_constituents(self, index_id: str | None = None, start=None, end=None) -> pd.DataFrame:
         if "constituents" not in self._cache:
             self._cache["constituents"] = self._simulate_constituents()
-        return self._cache["constituents"].copy()  # type: ignore[union-attr]
+        return self._cache["constituents"].copy()  # type: ignore[attr-defined]
 
     def fetch_macro(
         self, series: Sequence[str] | None = None, start=None, end=None
     ) -> pd.DataFrame:
         if "macro" not in self._cache:
             self._cache["macro"] = self._simulate_macro()
-        return self._cache["macro"].copy()  # type: ignore[union-attr]
+        return self._cache["macro"].copy()  # type: ignore[attr-defined]
 
     def fetch_industry(self, symbols: Sequence[str] | None = None) -> pd.DataFrame:
         if "industry" not in self._cache:
             prices = self.fetch_prices()
             self._cache["industry"] = prices[["symbol", "industry"]].drop_duplicates("symbol")
-        return self._cache["industry"].copy()  # type: ignore[union-attr]
+        return self._cache["industry"].copy()  # type: ignore[attr-defined]
 
     def benchmark_prices(self, index_id: str | None = None, start=None, end=None) -> pd.Series:
         if "benchmark" in self._cache:
-            return self._cache["benchmark"].copy()  # type: ignore[union-attr]
+            return self._cache["benchmark"].copy()  # type: ignore[attr-defined]
         prices = self.fetch_prices()
         close = prices.pivot(index="date", columns="symbol", values="adj_close")
         mcap = prices.pivot(index="date", columns="symbol", values="market_cap")

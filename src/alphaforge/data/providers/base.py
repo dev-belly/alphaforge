@@ -124,6 +124,15 @@ class DataProvider(ABC):
         """Convenience: total-return benchmark series used for relative analytics."""
         raise NotImplementedError(f"{self.name} does not provide benchmark series")
 
+    def symbols(self) -> list[str]:
+        """Universe this provider can serve.
+
+        The synthetic ``sample`` adapter overrides this with its generated
+        cross-section. Live vendors raise (they require an explicit list), which
+        mirrors :meth:`benchmark_prices`.
+        """
+        raise NotImplementedError(f"{self.name} does not expose a fixed symbol list")
+
     def describe(self) -> dict:
         return {
             "provider": self.name,

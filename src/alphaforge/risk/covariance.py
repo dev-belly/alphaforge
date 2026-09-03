@@ -9,7 +9,9 @@ little bias for a large reduction in estimation error.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -52,13 +54,16 @@ class CovarianceEstimator:
         rets = returns.dropna(how="all")
         if rets.shape[1] < 2:
             raise ValueError("Need at least two assets to estimate a covariance matrix")
-        fn = {
-            "sample": self._sample,
-            "ledoit_wolf": self._ledoit_wolf,
-            "shrinkage": self._shrinkage,
-            "ewma": self._ewma,
-            "factor": self._factor,
-        }[self.method]
+        fn = cast(
+            Callable[..., CovarianceEstimate],
+            {
+                "sample": self._sample,
+                "ledoit_wolf": self._ledoit_wolf,
+                "shrinkage": self._shrinkage,
+                "ewma": self._ewma,
+                "factor": self._factor,
+            }[self.method],
+        )
         if self.method == "factor":
             return fn(rets, factor_exposures, factor_cov)
         return fn(rets)
@@ -111,6 +116,37 @@ class CovarianceEstimator:
             method=f"shrinkage(intensity={intensity:.3f})",
             diagnostics={**self._diagnostics(out, rets), "intensity": float(intensity)},
         )
+
+    def _optimal_intensity(self, rets: pd.DataFrame, cov: np.ndarray, target: np.ndarray) -> float:
+        """Ledoit-Wolf optimal shrinkage intensity toward the constant-correlation target.
+
+        Implements the constant-correlation shrinkage intensity of Ledoit & Wolf
+        (2004), "Honey, I Shrunk the Sample Covariance Matrix":
+
+            lambda* = sum_{i,j} pi_hat_ij / ||S - T||_F^2,
+
+        clipped to ``[0, 1]``.  ``_shrinkage`` passes the *annualised* sample
+        covariance and target, so we de-annualise by ``/ 252`` and work in daily
+        units; both the numerator and the denominator then scale with the same
+        factor and the estimator is invariant to the annualisation choice.
+
+        ``pi_hat_ij = (1/n) * sum_t (y_it y_jt - s_ij)^2 - rho_hat_ij`` with
+        ``rho_hat_ij = (1/n) * sum_t (y_it y_jt)^2 - s_ij^2`` (the standard
+        second-moment correction that keeps lambda* non-negative).
+        """
+        x = rets.to_numpy(dtype=float)  # (n, p) daily returns
+        xc = x - x.mean(axis=0)  # demeaned
+        s = np.asarray(cov, dtype=float) / 252.0  # daily sample covariance
+        t = np.asarray(target, dtype=float) / 252.0  # daily target
+        outer = xc[:, :, None] * xc[:, None, :]  # y_it * y_jt  (n, p, p)
+        second_moment = (outer**2).mean(axis=0)  # (1/n) sum_t (y_it y_jt)^2
+        rho = second_moment - s**2  # rho_hat_ij
+        pi = ((outer - s[None, :, :]) ** 2).mean(axis=0) - rho  # pi_hat_ij
+        pi_hat = float(pi.sum())
+        denom = float(((s - t) ** 2).sum())
+        if denom <= 0:
+            return 0.0
+        return float(min(max(pi_hat / denom, 0.0), 1.0))
 
     def _ledoit_wolf(self, rets: pd.DataFrame) -> CovarianceEstimate:
         """Ledoit-Wolf shrinkage to a constant-correlation target.

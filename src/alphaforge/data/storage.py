@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -38,7 +39,7 @@ class DataStore:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.use_duckdb = use_duckdb
-        self._con = None
+        self._con: Any = None
         log.debug(f"DataStore root={self.root} duckdb={use_duckdb}")
 
     # -- connection ------------------------------------------------------
