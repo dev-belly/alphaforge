@@ -10,6 +10,7 @@ Neither adapter stores credentials - any token must come from the environment
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 
 import numpy as np
@@ -25,6 +26,85 @@ from alphaforge.data.providers.base import (
 from alphaforge.utils.logging import get_logger
 
 log = get_logger("data.vendors")
+
+# Curated, always-liquid universes used when callers do not supply an explicit
+# symbol list. These are fallbacks so a real backtest can run with zero config:
+# the pipeline resolves them automatically for the live vendors.
+YAHOO_DEFAULT_UNIVERSE: list[str] = [
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "NVDA",
+    "META",
+    "TSLA",
+    "BRK-B",
+    "JPM",
+    "V",
+    "UNH",
+    "JNJ",
+    "WMT",
+    "PG",
+    "MA",
+    "HD",
+    "BAC",
+    "XOM",
+    "KO",
+    "PEP",
+    "COST",
+    "CVX",
+    "ABBV",
+    "TMO",
+    "AVGO",
+    "ORCL",
+    "ADBE",
+    "MCD",
+    "CRM",
+    "AMD",
+]
+
+AKSHARE_DEFAULT_UNIVERSE: list[str] = [
+    "600519",
+    "601318",
+    "600036",
+    "000858",
+    "601166",
+    "600276",
+    "000333",
+    "002594",
+    "601012",
+    "600900",
+    "000651",
+    "600030",
+    "601888",
+    "600887",
+    "000001",
+    "601398",
+    "600585",
+    "002415",
+    "600309",
+    "601899",
+    "000725",
+    "002475",
+    "601988",
+    "600028",
+    "601857",
+    "600104",
+    "000002",
+    "002714",
+    "600809",
+    "603259",
+    "688981",
+    "300750",
+    "300059",
+    "002230",
+    "600690",
+    "601668",
+    "600048",
+    "000063",
+    "002241",
+    "600760",
+]
 
 
 class ProviderUnavailableError(RuntimeError):
@@ -85,7 +165,16 @@ class YahooFinanceProvider(DataProvider):
                 }
             )
             df["symbol"] = sym
-            df["market_cap"] = np.nan
+            # Best-effort market cap from the fast info endpoint. When it is
+            # unavailable the risk model gracefully falls back to equal weights.
+            mcap = np.nan
+            try:
+                shares = self._yf.Ticker(sym).fast_info.shares_outstanding
+                if shares is not None and not pd.isna(shares):
+                    mcap = float(shares) * float(df["close"].iloc[-1])
+            except Exception as exc:  # noqa: BLE001
+                log.debug(f"Yahoo market cap unavailable for {sym}: {exc}")
+            df["market_cap"] = mcap
             df["shares_outstanding"] = np.nan
             df["industry"] = "Unknown"
             frames.append(df)
@@ -207,176 +296,156 @@ class YahooFinanceProvider(DataProvider):
         return s
 
 
-class AkShareProvider(DataProvider):
-    """AkShare adapter for A-share data (optional dependency).
+class EastMoneyProvider(DataProvider):
+    """Key-less A-share data provider backed by the EastMoney quote API.
 
-    AkShare is community-maintained; schemas change without notice, so every
-    call is defensive and normalises into the AlphaForge canonical schema.
+    This is the same data source AkShare's ``stock_zh_a_hist`` uses, but we call
+    the HTTP endpoint directly so the platform needs **no third-party SDK** and
+    no API token. It is therefore the default ``akshare`` backend in AlphaForge:
+    the ``akshare`` package is heavy and its schema changes without notice.
+
+    Limitations (documented in the README):
+      * Only daily OHLCV + a qfq-adjusted close are fetched. ``market_cap`` is
+        left NaN, so the risk model falls back to equal-weight, and
+        value/quality factors are unavailable for this run (no fundamentals).
+      * EastMoney exposes current index membership only -> survivorship bias
+        applies; constituents are returned empty and the universe falls back to
+        the liquidity / price screens.
     """
 
-    name = "akshare"
+    name = "eastmoney"
+    _KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+    # EastMoney's public ``ut`` endpoint parameter (a non-credential, public API
+    # constant also embedded in AkShare). Override via the ALPHAFORGE_EASTMONEY_UT
+    # environment variable; no private key is ever stored in the repository.
+    _UT = os.environ.get("ALPHAFORGE_EASTMONEY_UT", "fa5fd1943c7b386f172d6893dbfba10b")
 
-    def __init__(self, token: str | None = None) -> None:
-        try:
-            import akshare  # noqa: F401
-        except ImportError as exc:  # pragma: no cover
-            raise ProviderUnavailableError(
-                "akshare is not installed. Install it with `pip install akshare`."
-            ) from exc
-        import akshare as ak
+    def __init__(self, timeout: int = 20) -> None:
+        import requests  # lightweight; already present via yfinance
 
-        self._ak = ak
-        # Tokens (e.g. Tushare) are read from the environment only.
-        self.token = token
-        log.info("AkShare provider initialised (A-share market)")
+        self._requests = requests
+        self.timeout = timeout
+        log.info("EastMoney provider initialised (A-share market, key-less)")
 
+    # -- helpers --------------------------------------------------------
+    @staticmethod
+    def _secid(code: str) -> str:
+        """Map a 6-digit A-share code to EastMoney's ``market.code`` secid."""
+        code = str(code).zfill(6)
+        if code.startswith("6"):
+            return f"1.{code}"  # Shanghai
+        if code.startswith(("0", "3", "8", "4")):
+            return f"0.{code}"  # Shenzhen / Beijing
+        return f"1.{code}"
+
+    @staticmethod
+    def _index_secid(index_id: str) -> str:
+        """Map an index code (e.g. 000300) to an EastMoney secid."""
+        if "." in str(index_id):
+            return str(index_id)
+        code = str(index_id).zfill(6)
+        if code.startswith("399"):
+            return f"0.{code}"  # Shenzhen indices (e.g. 399001, 399006)
+        return f"1.{code}"  # Shanghai indices (incl. CSI 300 = 000300)
+
+    def _klines(self, secid: str, start: str, end: str) -> list[str]:
+        params = {
+            "secid": secid,
+            "fields1": "f1,f2,f3,f4,f5,f6",
+            "fields2": "f51,f52,f53,f54,f55,f56",  # date,open,close,high,low,volume
+            "klt": "101",  # daily
+            "fqt": "1",  # qfq (forward-adjusted)
+            "beg": str(start).replace("-", ""),
+            "end": str(end).replace("-", ""),
+            "ut": self._UT,
+        }
+        resp = self._requests.get(self._KLINE_URL, params=params, timeout=self.timeout)
+        resp.raise_for_status()
+        data = resp.json().get("data")
+        if not data or not data.get("klines"):
+            return []
+        return list(data["klines"])
+
+    # -- interface ------------------------------------------------------
     def fetch_prices(self, symbols: Sequence[str], start: str, end: str) -> pd.DataFrame:
         frames = []
-        s_start, s_end = start.replace("-", ""), end.replace("-", "")
         for sym in symbols:
             try:
-                df = self._ak.stock_zh_a_hist(
-                    symbol=str(sym),
-                    period="daily",
-                    start_date=s_start,
-                    end_date=s_end,
-                    adjust="qfq",
-                )
-                if df is None or df.empty:
+                klines = self._klines(self._secid(sym), start, end)
+                if not klines:
+                    log.warning(f"EastMoney: no klines for {sym}")
                     continue
-                df = df.rename(
-                    columns={
-                        "日期": "date",
-                        "开盘": "open",
-                        "最高": "high",
-                        "最低": "low",
-                        "收盘": "close",
-                        "成交量": "volume",
-                        "成交额": "amount",
-                    }
-                )
-                df["symbol"] = str(sym)
-                df["date"] = pd.to_datetime(df["date"])
-                df["adj_close"] = df["close"]
+                recs = []
+                for row in klines:
+                    p = row.split(",")
+                    if len(p) < 6:
+                        continue
+                    recs.append(
+                        {
+                            "date": pd.Timestamp(p[0]),
+                            "symbol": str(sym),
+                            "open": float(p[1]),
+                            "close": float(p[2]),
+                            "high": float(p[3]),
+                            "low": float(p[4]),
+                            "volume": float(p[5]),
+                        }
+                    )
+                if not recs:
+                    continue
+                df = pd.DataFrame(recs)
+                df["adj_close"] = df["close"]  # qfq-adjusted close
                 df["market_cap"] = np.nan
                 df["shares_outstanding"] = np.nan
                 df["industry"] = "Unknown"
                 frames.append(df)
             except Exception as exc:  # noqa: BLE001
-                log.warning(f"akshare price fetch failed for {sym}: {exc}")
+                log.warning(f"EastMoney price fetch failed for {sym}: {exc}")
         if not frames:
             return pd.DataFrame({c: pd.Series(dtype="object") for c in PRICE_COLUMNS})
         out = pd.concat(frames, ignore_index=True)
         return out[[c for c in PRICE_COLUMNS if c in out.columns]]
 
     def fetch_fundamentals(self, symbols: Sequence[str], start: str, end: str) -> pd.DataFrame:
-        log.warning("AkShare fundamentals adapter: point-in-time release dates are approximated")
-        rows = []
-        for sym in symbols:
-            try:
-                df = self._ak.stock_financial_abstract(symbol=str(sym))
-                if df is None or df.empty:
-                    continue
-                for _, r in df.iterrows():
-                    period_end = pd.to_datetime(r.get("报告期"), errors="coerce")
-                    if pd.isna(period_end):
-                        continue
+        log.warning(
+            "EastMoney provider supplies price data only; value/quality factors "
+            "are unavailable for this run (fundamentals not fetched)."
+        )
+        return pd.DataFrame({c: pd.Series(dtype="object") for c in FUNDAMENTAL_COLUMNS})
 
-                    def g(key, r=r):
-                        return pd.to_numeric(r.get(key), errors="coerce")
-
-                    rows.append(
-                        {
-                            "symbol": str(sym),
-                            "fiscal_period": str(pd.Period(period_end, freq="Q")),
-                            "period_end": period_end,
-                            "report_date": period_end + pd.Timedelta(days=90),
-                            "revenue": g("营业总收入"),
-                            "cogs": g("营业成本"),
-                            "gross_profit": np.nan,
-                            "net_income": g("归母净利润"),
-                            "total_assets": g("资产总计"),
-                            "total_equity": g("股东权益合计"),
-                            "total_debt": np.nan,
-                            "operating_cashflow": np.nan,
-                            "capex": np.nan,
-                            "ebit": np.nan,
-                        }
-                    )
-            except Exception as exc:  # noqa: BLE001
-                log.warning(f"akshare fundamentals failed for {sym}: {exc}")
-        if not rows:
-            return pd.DataFrame({c: pd.Series(dtype="object") for c in FUNDAMENTAL_COLUMNS})
-        df = pd.DataFrame(rows)
-        return df[[c for c in FUNDAMENTAL_COLUMNS if c in df.columns] + ["period_end"]]
-
-    def fetch_constituents(
-        self, index_id: str = "000300", start: str = "", end: str = ""
-    ) -> pd.DataFrame:
-        try:
-            df = self._ak.index_stock_cons(symbol=index_id)
-        except Exception as exc:  # noqa: BLE001
-            log.warning(f"akshare constituents failed for {index_id}: {exc}")
-            return pd.DataFrame({c: pd.Series(dtype="object") for c in CONSTITUENT_COLUMNS})
-        cols = df.columns
-        sym_col = next((c for c in cols if "代码" in c), cols[1])
-        date_col = next((c for c in cols if "日期" in c), None)
-        date = pd.Timestamp(date_col and df[date_col].iloc[0] or pd.Timestamp.today())
-        syms = df[sym_col].astype(str).str.zfill(6).tolist()
-        return pd.DataFrame(
-            {
-                "date": date,
-                "symbol": syms,
-                "index_id": index_id,
-                "weight": 1.0 / max(len(syms), 1),
-            }
-        )[CONSTITUENT_COLUMNS]
+    def fetch_constituents(self, index_id: str, start: str, end: str) -> pd.DataFrame:
+        log.warning(
+            f"EastMoney does not supply historical membership for {index_id}; "
+            "returning empty (universe falls back to liquidity screens)."
+        )
+        return pd.DataFrame({c: pd.Series(dtype="object") for c in CONSTITUENT_COLUMNS})
 
     def fetch_macro(self, series: Sequence[str], start: str, end: str) -> pd.DataFrame:
-        mapping = {
-            "CPI_YOY": ("macro_china_cpi_monthly", "全国-当月"),
-            "PPI_YOY": ("macro_china_ppi", "当月同比"),
-            "M2_YOY": ("macro_china_money_supply", "M2-同比增长"),
-        }
-        rows = []
-        for sid in series:
-            fn_name, *_ = mapping.get(sid, (None,))
-            if not fn_name:
-                continue
-            try:
-                fn = getattr(self._ak, fn_name)
-                df = fn()
-                for _, r in df.iterrows():
-                    rows.append(
-                        {
-                            "date": pd.to_datetime(r.iloc[0]),
-                            "series_id": sid,
-                            "value": float(r.iloc[1]),
-                        }
-                    )
-            except Exception as exc:  # noqa: BLE001
-                log.warning(f"akshare macro failed for {sid}: {exc}")
-        if not rows:
-            return pd.DataFrame({c: pd.Series(dtype="object") for c in MACRO_COLUMNS})
-        return pd.DataFrame(rows)[MACRO_COLUMNS]
+        return pd.DataFrame({c: pd.Series(dtype="object") for c in MACRO_COLUMNS})
 
     def fetch_industry(self, symbols: Sequence[str]) -> pd.DataFrame:
-        try:
-            df = self._ak.stock_board_industry_cons_em()
-        except Exception as exc:  # noqa: BLE001
-            log.warning(f"akshare industry map failed: {exc}")
-            return pd.DataFrame(columns=["symbol", "industry"])
-        sym_col = next((c for c in df.columns if "代码" in c), None)
-        ind_col = next((c for c in df.columns if "行业" in c or "板块" in c), None)
-        if sym_col is None or ind_col is None:
-            return pd.DataFrame(columns=["symbol", "industry"])
-        out = df[[sym_col, ind_col]].rename(columns={sym_col: "symbol", ind_col: "industry"})
-        out["symbol"] = out["symbol"].astype(str).str.zfill(6)
-        return out[out["symbol"].isin([str(s) for s in symbols])]
+        return pd.DataFrame(
+            [{"symbol": str(s), "industry": "Unknown"} for s in symbols],
+            columns=["symbol", "industry"],
+        )
+
+    def benchmark_prices(self, index_id: str = "000300", start=None, end=None) -> pd.Series:
+        secid = self._index_secid(index_id)
+        klines = self._klines(secid, start or "2000-01-01", end or "2030-01-01")
+        if not klines:
+            raise RuntimeError(f"EastMoney benchmark unavailable for {index_id}")
+        dates, closes = [], []
+        for row in klines:
+            p = row.split(",")
+            if len(p) < 3:
+                continue
+            dates.append(pd.Timestamp(p[0]))
+            closes.append(float(p[2]))
+        return pd.Series(closes, index=pd.DatetimeIndex(dates), name="benchmark")
 
 
 __all__ = [
     "YahooFinanceProvider",
-    "AkShareProvider",
+    "EastMoneyProvider",
     "ProviderUnavailableError",
 ]

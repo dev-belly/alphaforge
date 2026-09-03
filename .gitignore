@@ -53,3 +53,4 @@ data/processed/*
 
 # pytest temp dirs
 .tmp/
+.pytest_tmp/

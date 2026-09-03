@@ -13,6 +13,7 @@ Order (every later stage only sees earlier, real outputs)::
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -99,6 +100,7 @@ class ResearchPipeline:
         model_type: str | None = None,
         report_dir: str = "research/reports",
         persist: bool = False,
+        symbols: Sequence[str] | None = None,
     ) -> ResearchState:
         cfg = self.config.raw
         start = start or cfg.get("data", {}).get("start_date")
@@ -115,7 +117,10 @@ class ResearchPipeline:
                 end=end,
                 index_id=cfg.get("data", {}).get("universe", "SP500_SAMPLE"),
                 persist=persist,
+                symbols=symbols,
             )
+        d["etl_symbols"] = int(res.bundle.prices["symbol"].nunique())
+        d["data_provider"] = res.bundle.metadata.get("provider")
         d["etl_symbols"] = int(res.bundle.prices["symbol"].nunique())
 
         # -- 2. panel ---------------------------------------------------

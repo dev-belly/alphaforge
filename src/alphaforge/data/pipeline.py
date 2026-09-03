@@ -7,6 +7,7 @@ quality-checked dataset.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +21,31 @@ from alphaforge.data.universe import Universe, UniverseConfig
 from alphaforge.utils.logging import Timer, get_logger
 
 log = get_logger("data.pipeline")
+
+
+def _resolve_symbols(
+    provider: DataProvider, symbols: Sequence[str] | None, index_id: str
+) -> Sequence[str] | None:
+    """Pick the universe for this run.
+
+    * An explicit ``symbols`` list always wins (lets callers run any basket).
+    * The synthetic ``sample`` provider ignores the argument and generates its
+      own cross-section, so we return ``None`` for it.
+    * The live vendors (yahoo / akshare) need a concrete list; when none is
+      given we fall back to a curated, always-liquid default universe so a real
+      backtest runs with zero configuration.
+    """
+    if symbols:
+        return list(symbols)
+    if provider.name in {"yahoo"}:
+        from alphaforge.data.providers.vendors import YAHOO_DEFAULT_UNIVERSE
+
+        return list(YAHOO_DEFAULT_UNIVERSE)
+    if provider.name in {"akshare", "eastmoney"}:
+        from alphaforge.data.providers.vendors import AKSHARE_DEFAULT_UNIVERSE
+
+        return list(AKSHARE_DEFAULT_UNIVERSE)
+    return None
 
 
 @dataclass
@@ -65,13 +91,15 @@ class DataPipeline:
         end: str = "2024-12-31",
         index_id: str = "SP500_SAMPLE",
         persist: bool = True,
+        symbols: Sequence[str] | None = None,
     ) -> PipelineResult:
+        symbols = _resolve_symbols(self.provider, symbols, index_id)
         with Timer("etl.fetch", log):
-            prices = self.provider.fetch_prices(None, start, end)
-            fundamentals = self.provider.fetch_fundamentals(None, start, end)
-            macro = self.provider.fetch_macro(None, start, end)
+            prices = self.provider.fetch_prices(symbols, start, end)
+            fundamentals = self.provider.fetch_fundamentals(symbols, start, end)
+            macro = self.provider.fetch_macro(symbols, start, end)
             constituents = self.provider.fetch_constituents(index_id, start, end)
-            industry = self.provider.fetch_industry(None)
+            industry = self.provider.fetch_industry(symbols)
 
         if prices.empty:
             raise RuntimeError(f"Provider {self.provider.name} returned an empty price panel")

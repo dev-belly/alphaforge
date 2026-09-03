@@ -26,8 +26,8 @@ def get_provider(name: str, **kwargs) -> DataProvider:
         from alphaforge.data.providers.vendors import YahooFinanceProvider
 
         return YahooFinanceProvider(**kwargs)
-    if name == "akshare":
-        from alphaforge.data.providers.vendors import AkShareProvider
+    if name in {"akshare", "eastmoney"}:
+        from alphaforge.data.providers.vendors import EastMoneyProvider
 
-        return AkShareProvider(**kwargs)
+        return EastMoneyProvider(**kwargs)
     raise ValueError(f"Unknown data provider: {name!r}")
