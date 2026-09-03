@@ -1,0 +1,109 @@
+# =============================================================================
+# AlphaForge - Core configuration
+# All strategy / pipeline parameters live here. Nothing is hard-coded in code.
+# =============================================================================
+
+project:
+  name: AlphaForge
+  seed: 42
+  timezone: UTC
+
+data:
+  # sample | local | yahoo | akshare | tushare
+  provider: sample
+  universe: sp500_sample
+  start_date: "2015-01-01"
+  end_date: "2024-12-31"
+  cache_dir: data/processed
+  raw_dir: data/raw
+  storage_backend: parquet   # parquet | duckdb
+  # If the provider cannot supply a full historical index-membership history,
+  # survivorship bias is unavoidable. Flagged in README & DataQualityReport.
+  survivorship_bias_disclaimer: true
+  # Fundamental data enters the system only after the public release date.
+  fundamental_lag_days: 90
+
+universe:
+  benchmark: SP500
+  min_price: 5.0
+  min_adv_usd: 1_000_000
+  exclude_financials_for_value: false
+
+factor:
+  winsorize: true
+  winsorization: 0.01
+  standardize: true
+  rank_transform: false
+  industry_neutralize: true
+  size_neutralize: true
+  # forward return horizon used for IC / ML labels (in trading days)
+  horizon: 21
+
+model:
+  type: ridge            # ridge | elasticnet | random_forest | lightgbm
+  params:
+    alpha: 1.0
+  target: forward_return  # forward_return | forward_rank
+  # Walk-forward validation
+  walk_forward:
+    train_years: 4
+    test_years: 1
+    step_years: 1
+    embargo_days: 21
+    purge_days: 21
+    expanding: true
+
+portfolio:
+  method: mean_variance   # equal_weight | mean_variance | min_variance | max_sharpe | risk_parity
+  long_only: true
+  fully_invested: true
+  max_weight: 0.05
+  min_weight: 0.0
+  target_volatility: 0.12
+  turnover_limit: 0.20
+  max_holdings: 50
+  cash_buffer: 0.0
+  max_industry_deviation: 0.03
+  risk_aversion: 5.0
+  tc_penalty: 0.5
+
+risk:
+  covariance_method: ledoit_wolf   # sample | ledoit_wolf | ewma
+  ewma_halflife: 90
+  style_factors: [size, value, momentum, volatility, liquidity, quality]
+  shrinkage_intensity: null
+
+backtest:
+  start_date: "2019-01-01"
+  end_date: "2024-12-31"
+  rebalance: monthly      # daily | weekly | monthly
+  initial_capital: 10_000_000
+  execution_lag_days: 1   # signal date -> execution date (prevents look-ahead)
+  benchmark: SP500
+  allow_short: false
+
+cost:
+  commission_bps: 2.0
+  slippage_bps: 5.0
+  # market impact: impact = impact_coeff * sqrt(participation_rate) * value
+  impact_coeff_bps: 10.0
+  participation_cap: 0.10
+  min_commission: 0.0
+
+reporting:
+  output_dir: research/reports
+  figure_dpi: 130
+  figure_format: png
+
+agent:
+  enabled: true
+  # If no LLM credential is configured the copilot degrades to a deterministic
+  # rule-based analyst that reads the same real tool outputs. No fabrication.
+  provider: none          # none | openai | anthropic
+  model: null
+  max_tool_calls: 8
+
+logging:
+  level: INFO
+  json: false
+  file: logs/alphaforge.log

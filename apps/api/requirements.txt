@@ -1,0 +1,8 @@
+# AlphaForge Research API
+# Run with:  uvicorn alphaforge_api.main:app --reload --port 8000
+# (ensure the package is importable: `pip install -e .` from the repo root, or
+#  set PYTHONPATH=apps:src when launching uvicorn)
+fastapi>=0.104
+uvicorn[standard]>=0.24
+pydantic>=2.4
+httpx>=0.25

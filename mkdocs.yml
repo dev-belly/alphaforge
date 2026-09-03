@@ -1,0 +1,19 @@
+site_name: AlphaForge
+site_description: Institutional quant research & portfolio engineering platform
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+  features:
+    - navigation.sections
+    - content.code.copy
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Quickstart: quickstart.md
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.highlight
+  - pymdownx.superfences

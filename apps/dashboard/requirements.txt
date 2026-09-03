@@ -1,0 +1,7 @@
+# AlphaForge Dashboard
+# Run with:  streamlit run apps/dashboard/streamlit_app.py
+# (needs the editable install: pip install -e .[dashboard], or set PYTHONPATH=src)
+streamlit>=1.28
+plotly>=5.17
+pandas>=2.0
+numpy>=1.24
