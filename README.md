@@ -106,6 +106,25 @@ Launch the dashboard:
 streamlit run apps/dashboard/streamlit_app.py
 ```
 
+## Sample output
+
+Every figure below is rendered from the shipped **synthetic `sample`** dataset by
+`python scripts/make_assets.py` (seed 42) — they demonstrate the *pipeline*, not a
+tradeable edge. The exact same numbers appear in the HTML report and the dashboard.
+
+**Net equity curve & drawdown** (backtest window 2019–2024, monthly rebalance):
+
+![Net equity curve and drawdown](assets/equity_curve.png)
+
+**Top factors by Rank-IC** (of 42 evaluated; positive Rank-IC = economically
+meaningful signal):
+
+![Top factors by Rank-IC](assets/factor_ic.png)
+
+**Annualized return by market regime** (Bull/Bear × High/Low-Vol):
+
+![Annualized return by market regime](assets/regime_returns.png)
+
 ## Data & providers
 
 `alphaforge.data.providers` exposes one interface (`fetch_prices`,

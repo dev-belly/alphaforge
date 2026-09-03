@@ -4,7 +4,7 @@
 PYTHON ?= python3
 PIP    ?= pip
 
-.PHONY: help install install-dev test test-fast lint fmt format ci run demo serve-api run-api dashboard run-dashboard docker-up docker-down docs clean
+.PHONY: help install install-dev test test-fast lint fmt format ci run demo serve-api run-api dashboard run-dashboard assets docker-up docker-down docs clean
 
 .DEFAULT_GOAL := help
 
@@ -53,6 +53,9 @@ dashboard:  ## Launch the Streamlit dashboard
 	streamlit run apps/dashboard/streamlit_app.py
 
 run-dashboard: dashboard  ## Alias for `make dashboard`
+
+assets:  ## Render sample-output charts into assets/ (headless; needs the viz extra)
+	$(PYTHON) scripts/make_assets.py
 
 docker-up:  ## Build and start API + dashboard with docker compose
 	docker compose up --build
