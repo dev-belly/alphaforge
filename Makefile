@@ -34,8 +34,11 @@ fmt:  ## Auto-format with ruff + black
 
 format: fmt  ## Alias for `make fmt`
 
-ci:  ## What CI runs
-	ruff check src apps tests
+ci:  ## Run exactly what CI's test job enforces (ruff, mypy, docs nav, fast tests)
+	ruff check src apps tests scripts
+	ruff format --check src apps tests scripts
+	mypy src apps/api
+	$(PYTHON) scripts/check_docs.py
 	pytest -m "not slow"
 
 run:  ## One-shot research run (writes research/reports/research_report.html)
