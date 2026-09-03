@@ -39,6 +39,7 @@ from alphaforge.execution.broker import BrokerSimulator
 from alphaforge.execution.costs import CostModel
 from alphaforge.features.panel import MarketPanel
 from alphaforge.utils.logging import Timer, get_logger
+from alphaforge.utils.math_utils import ensure_returns
 
 log = get_logger("backtest.engine")
 
@@ -339,8 +340,18 @@ class BacktestEngine:
 
         bench = None
         if self.benchmark is not None:
-            bench = self.benchmark.reindex(returns_s.index).dropna()
-            bench = bench.pct_change(fill_method=None).dropna()
+            # `panel.benchmark` is already a daily *return* series: the ETL layer
+            # converts provider price levels exactly once, in
+            # `_fetch_benchmark_returns`. `ensure_returns` makes that contract
+            # explicit instead of assuming it, so a level series handed in
+            # directly still works while an already-return series is never
+            # double-differenced (which used to turn a ~15%-vol benchmark into a
+            # 58,000%-vol one and silently destroy beta/alpha/tracking error).
+            bench = ensure_returns(
+                self.benchmark.reindex(returns_s.index).dropna(), "backtest.benchmark"
+            ).dropna()
+            if bench.empty:
+                bench = None
 
         years = len(returns_s) / 252.0
         cost_drag = (

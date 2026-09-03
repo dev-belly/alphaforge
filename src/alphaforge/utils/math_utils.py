@@ -12,6 +12,10 @@ from collections.abc import Iterable, Sequence
 import numpy as np
 import pandas as pd
 
+from alphaforge.utils.logging import get_logger
+
+log = get_logger("utils.math")
+
 TRADING_DAYS_PER_YEAR = 252
 MONTHS_PER_YEAR = 12
 
@@ -166,6 +170,40 @@ def forward_returns(
     else:
         fwd = prices.shift(-horizon) / prices - 1.0
     return fwd
+
+
+def ensure_returns(series: pd.Series, name: str = "series") -> pd.Series:
+    """Normalise a series to periodic **returns**, converting price levels if needed.
+
+    AlphaForge's contract is that benchmark data travels around as a daily
+    *return* series (see ``DataPipeline._fetch_benchmark_returns``), but some
+    callers naturally hold a price *level* — an index level, a NAV curve.
+
+    Blindly calling ``pct_change`` is therefore a trap: applied to an
+    already-return series it differences the differences, which turned a
+    ~15%-vol benchmark into a 58,000%-vol one and silently destroyed beta,
+    alpha, tracking error, information ratio and every capture ratio computed
+    from it. Detection is explicit rather than assumed.
+
+    A series is treated as a price **level** only when it is strictly positive
+    *and* its typical magnitude (median) is far too large to plausibly be a
+    periodic return. The median is used as the discriminator so a single extreme
+    outlier cannot flip the decision.
+    """
+    s = pd.Series(series).dropna().astype(float).sort_index()
+    if s.empty:
+        return s
+    all_positive = bool((s > 0).all())
+    # A periodic return series has tiny typical magnitudes (daily ~1e-3,
+    # monthly ~1e-2, even a strongly trending all-positive window stays below
+    # 1%); a price / index / NAV level is an order of magnitude larger. Using
+    # the median keeps an already-return benchmark untouched while still
+    # converting a level series handed in directly.
+    looks_like_level = all_positive and float(s.median()) > 0.01
+    if looks_like_level:
+        log.info(f"{name}: detected a price-level series - converting to returns")
+        s = s.pct_change(fill_method=None).dropna()
+    return s
 
 
 def compound(returns: pd.Series) -> pd.Series:
