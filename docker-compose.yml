@@ -1,0 +1,35 @@
+# AlphaForge — one-command local stack (FastAPI research service + Streamlit dashboard).
+#
+# Build & run:
+#   docker compose up --build
+#
+#   Research API : http://localhost:8000/health
+#   Dashboard     : http://localhost:8501
+#
+# The same image serves both services; only the command differs. Mounts keep
+# configs, data and generated reports in sync with the host.
+
+services:
+  api:
+    build: .
+    command: alphaforge serve-api --api-port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./configs:/app/configs
+      - ./data:/app/data
+      - ./research:/app/research
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    command: streamlit run apps/dashboard/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./configs:/app/configs
+      - ./data:/app/data
+      - ./research:/app/research
+    depends_on:
+      - api
+    restart: unless-stopped

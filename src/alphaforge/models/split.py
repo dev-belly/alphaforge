@@ -70,7 +70,6 @@ class WalkForwardSplitter:
         if len(dates) == 0:
             return []
         dates = pd.DatetimeIndex(sorted(pd.unique(dates)))
-        dates = pd.DatetimeIndex(dates.date.astype("datetime64[ns]")) if False else dates
 
         # Fold boundaries anchored on calendar years for interpretability.
         start_year = dates.min().year
@@ -134,7 +133,7 @@ class WalkForwardSplitter:
         pos = np.where(train_mask)[0]
         if pos.size == 0:
             return out
-        cutoff = dates[pos[-1]] - pd.Timedelta(days=int(purge_days * 1.5))
+        cutoff = dates[pos[-1]] - pd.Timedelta(days=int(purge_days))
         out &= np.asarray(dates <= cutoff)
         return out
 
@@ -152,7 +151,7 @@ class WalkForwardSplitter:
         pos = np.where(train_mask)[0]
         if pos.size == 0:
             return out
-        cutoff = dates[pos[-1]] + pd.Timedelta(days=int(embargo_days * 1.5))
+        cutoff = dates[pos[-1]] + pd.Timedelta(days=int(embargo_days))
         out &= np.asarray(dates > cutoff)
         return out
 

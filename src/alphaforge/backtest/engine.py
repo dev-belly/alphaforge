@@ -273,6 +273,13 @@ class BacktestEngine:
                         np.nansum(shares.to_numpy(dtype=float) * mark_px.to_numpy(dtype=float))
                     )
                     nav_t = nav_after
+                    # The day's return must be earned on the *post-cost* book, so that
+                    # transaction costs actually depress the return series and the equity
+                    # curve stays consistent with it. Without this, costs are deducted
+                    # from NAV (step 2 above used the pre-trade book) but never reflected
+                    # in `returns`, which inflates the net Sharpe/CAGR.
+                    if prev_nav > 0:
+                        rets[date] = nav_after / prev_nav - 1.0
                     n_rebalances += 1
                     pending = None
                 elif date in exec_to_signal and pending is None:

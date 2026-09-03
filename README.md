@@ -17,7 +17,7 @@ research copilot reads real tool outputs and applies fixed rules.
 
 | Layer | What it does |
 |-------|--------------|
-| **Data** | Pluggable providers (`sample`, `local`, `yahoo`, `akshare`, `tushare`); point-in-time universe, survivorship flags. |
+| **Data** | Pluggable providers (`sample`, `local`, `yahoo`, `akshare`); `tushare` adapter reserved (requires a user-supplied API token). Point-in-time universe, survivorship flags. |
 | **Factors** | 40+ cross-sectional factors across momentum, value, quality, risk, liquidity, size; winsorize / standardize / neutralize. |
 | **Models** | Ridge / ElasticNet / RandomForest / LightGBM under walk-forward CV with purge + embargo; Rank-IC diagnostics. |
 | **Risk** | Fundamental multi-factor model `Σ = B F Bᵀ + D`; vol targeting, Euler risk decomposition. |

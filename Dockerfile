@@ -15,8 +15,8 @@ COPY apps ./apps
 COPY configs ./configs
 
 RUN pip install --upgrade pip \
-    && pip install -e ".[api]"
+    && pip install -e ".[api,dashboard,viz]"
 
-EXPOSE 8000
+EXPOSE 8000 8501
 
 CMD ["alphaforge", "serve-api", "--api-port", "8000"]
