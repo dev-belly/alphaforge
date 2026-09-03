@@ -132,9 +132,7 @@ class DataPipeline:
                 if benchmark is not None and len(benchmark):
                     self.store.write(
                         "benchmark",
-                        pd.DataFrame(
-                            {"date": benchmark.index, "value": benchmark.to_numpy()}
-                        ),
+                        pd.DataFrame({"date": benchmark.index, "value": benchmark.to_numpy()}),
                     )
                 self.store.register_views()
 

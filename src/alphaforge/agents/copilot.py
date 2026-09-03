@@ -192,8 +192,7 @@ class ResearchCopilot:
             if losses:
                 worst_nm = min(losses, key=losses.get)
                 findings.append(
-                    f"Stress: {len(losses)} scenarios; worst {worst_nm} "
-                    f"{losses[worst_nm]:+.2%}."
+                    f"Stress: {len(losses)} scenarios; worst {worst_nm} {losses[worst_nm]:+.2%}."
                 )
                 severe = [nm for nm, v in losses.items() if v < -0.10]
                 if severe:

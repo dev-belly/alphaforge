@@ -5,6 +5,29 @@ AlphaForge is a linear pipeline of self-contained layers. Each layer consumes th
 `alphaforge.pipeline.ResearchPipeline`. A failure in any single layer is caught
 and reported, so a partial run still produces a report from the rest.
 
+## Pipeline
+
+```mermaid
+flowchart LR
+    A[Data Provider] --> B[Panel]
+    B --> C[Factors]
+    C --> D[ML Walk-Forward]
+    D --> E[Risk Model<br/>Sigma = B F B^T + D]
+    E --> F[Portfolio Opt]
+    F --> G[Execution / Costs]
+    G --> H[Backtest]
+    H --> I[Attribution]
+    I --> J[Report + Copilot]
+    D -.Rank-IC.-> F
+    E -.exposures.-> G
+    H -.returns.-> I
+    I -.diagnostics.-> J
+    E -.regime / stress.-> J
+```
+
+Every layer is a pure function of the layer before it; the CLI, the API and the
+dashboard all call the same `ResearchState`, so they can never disagree.
+
 ## Layers
 
 ### 1. Data (`alphaforge.data`)

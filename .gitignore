@@ -50,3 +50,6 @@ data/processed/*
 
 # Notebook checkpoints
 .ipynb_checkpoints/
+
+# pytest temp dirs
+.tmp/

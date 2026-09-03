@@ -28,9 +28,7 @@ def _fake_risk(n_assets: int = 20, seed: int = 0) -> RiskModelResult:
     factors = ["market", "value", "momentum", "volatility", "quality", "liquidity"]
     B = pd.DataFrame(rng.normal(0, 1, size=(n_assets, len(factors))), index=assets, columns=factors)
     B["market"] = 1.0  # every asset has unit market exposure
-    F = pd.DataFrame(
-        np.eye(len(factors)) * 0.04, index=factors, columns=factors
-    )  # 20% factor vol
+    F = pd.DataFrame(np.eye(len(factors)) * 0.04, index=factors, columns=factors)  # 20% factor vol
     spec = pd.Series(rng.uniform(0.1, 0.3, size=n_assets), index=assets)
     cov = B.to_numpy() @ F.to_numpy() @ B.to_numpy().T + np.diag(spec.to_numpy())
     return RiskModelResult(

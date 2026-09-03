@@ -287,8 +287,7 @@ def _stress_section(stress: Any) -> str:
         rows.append(
             "<tr>"
             + "".join(
-                f"<td>{html.escape(str(x))}</td>"
-                for x in [nm, _pct(res.pnl_pct), worst_txt or "-"]
+                f"<td>{html.escape(str(x))}</td>" for x in [nm, _pct(res.pnl_pct), worst_txt or "-"]
             )
             + "</tr>"
         )
@@ -297,9 +296,7 @@ def _stress_section(stress: Any) -> str:
         "<p class='sub'>Scenario P&amp;L from factor shocks on the representative book "
         "(time-mean of absolute weights). Deterministic, no Monte Carlo.</p>"
         "<table class='data'><thead><tr><th>scenario</th><th>pnl</th>"
-        "<th>worst holdings</th></tr></thead><tbody>"
-        + "".join(rows)
-        + "</tbody></table>"
+        "<th>worst holdings</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
     )
 
 

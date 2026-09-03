@@ -56,9 +56,7 @@ class StressResult:
         if self.contributions is None:
             return []
         c = self.contributions.sort_values()
-        return [
-            {"symbol": str(idx), "contribution": float(v)} for idx, v in c.head(n).items()
-        ]
+        return [{"symbol": str(idx), "contribution": float(v)} for idx, v in c.head(n).items()]
 
     def to_dict(self) -> dict:
         return {
@@ -106,9 +104,7 @@ def stress_portfolio(
         scenario=name,
         pnl_pct=pnl,
         shock={k: float(v) for k, v in shock.items() if v != 0.0},
-        factor_exposure={
-            c: float(port_exp[i]) for i, c in enumerate(risk.exposures.columns)
-        },
+        factor_exposure={c: float(port_exp[i]) for i, c in enumerate(risk.exposures.columns)},
         contributions=contributions,
     )
 

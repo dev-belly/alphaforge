@@ -26,7 +26,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from alphaforge.agents.tools import CATALOG, run_tools
+from alphaforge.backtest.engine import BacktestConfig, BacktestEngine
 from alphaforge.pipeline import ResearchPipeline, ResearchState
+from alphaforge.portfolio.constructor import PortfolioConstructor
 from alphaforge.utils.config import Config, set_global_seed
 from alphaforge.utils.logging import configure_logging, get_logger
 
@@ -64,6 +67,29 @@ class ResearchRequest(BaseModel):
     )
     seed: int = Field(42, description="Global RNG seed for reproducibility.")
     persist: bool = Field(False, description="Persist the processed dataset to disk.")
+
+
+class OptimizeRequest(BaseModel):
+    method: str | None = Field(
+        None, description="equal_weight | mean_variance | min_variance | max_sharpe | risk_parity"
+    )
+    target_volatility: float | None = Field(None, description="Annualised vol target.")
+
+
+class BacktestRequest(BaseModel):
+    execution_lag_days: int | None = Field(
+        None, description="Session lag between signal and trade."
+    )
+    rebalance: str | None = Field(None, description="monthly | weekly | daily")
+    cost_rate: float | None = Field(None, description="Proportional transaction-cost rate.")
+
+
+class AgentQueryRequest(BaseModel):
+    tool: str = Field(
+        ...,
+        description="Tool to invoke: factors | model | backtest | diagnostics | risk | "
+        "attribution | regime | stress | quality | config",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -331,8 +357,181 @@ def regime() -> dict:
 def stress() -> dict:
     s = _STATE["state"].stress if _STATE["state"] else None
     if not s:
-        raise HTTPException(status_code=404, detail="No stress book cached. POST /research/run first.")
+        raise HTTPException(
+            status_code=404, detail="No stress book cached. POST /research/run first."
+        )
     return _clean({nm: r.to_dict() for nm, r in s.items()})
+
+
+# ---------------------------------------------------------------------------
+# portfolio + factor endpoints
+# ---------------------------------------------------------------------------
+def _require_state() -> ResearchState:
+    if _STATE["state"] is None:
+        raise HTTPException(
+            status_code=404, detail="No research run cached yet. POST /research/run first."
+        )
+    return _STATE["state"]
+
+
+@app.get("/portfolio/summary")
+def portfolio_summary() -> dict:
+    st = _require_state()
+    w = st.weights
+    if w is None:
+        raise HTTPException(status_code=404, detail="No portfolio weights cached.")
+    latest = w.iloc[:, -1]
+    gross = float(latest.abs().sum())
+    net = float(latest.sum())
+    top = latest.reindex(latest.abs().sort_values(ascending=False).index).head(10)
+    return _clean(
+        {
+            "n_assets": int((latest.abs() > 0).sum()),
+            "gross_exposure": gross,
+            "net_exposure": net,
+            "cash_buffer": 1.0 - gross,
+            "avg_abs_weight": float(latest.abs().mean()),
+            "top_holdings": {str(k): float(v) for k, v in top.items()},
+            "avg_turnover": st.diagnostics.get("avg_turnover"),
+        }
+    )
+
+
+@app.get("/portfolio/positions")
+def portfolio_positions() -> dict:
+    st = _require_state()
+    w = st.weights
+    if w is None:
+        raise HTTPException(status_code=404, detail="No portfolio weights cached.")
+    latest = w.iloc[:, -1]
+    latest = latest[latest.abs() > 0]
+    return _clean(
+        {
+            "as_of": str(w.columns[-1].date())
+            if hasattr(w.columns, "date")
+            else str(w.columns[-1]),
+            "positions": [{"symbol": str(s), "weight": float(v)} for s, v in latest.items()],
+        }
+    )
+
+
+@app.get("/portfolio/performance")
+def portfolio_performance() -> dict:
+    st = _require_state()
+    bt = st.backtest
+    if bt is None:
+        raise HTTPException(status_code=404, detail="No backtest cached.")
+    return _clean({"summary": bt.summary(), "metrics": bt.metrics})
+
+
+@app.get("/portfolio/risk")
+def portfolio_risk() -> dict:
+    st = _require_state()
+    rr = st.risk_result
+    if rr is None:
+        raise HTTPException(status_code=404, detail="No risk model cached.")
+    out = {
+        "r_squared": rr.r_squared,
+        "n_assets": int(rr.exposures.shape[0]),
+        "n_factors": int(rr.exposures.shape[1]),
+        "factors": list(rr.exposures.columns),
+    }
+    if st.stress is not None:
+        out["stress"] = {nm: r.to_dict() for nm, r in st.stress.items()}
+    return _clean(out)
+
+
+@app.get("/factors/{factor_name}")
+def factor_by_name(factor_name: str) -> dict:
+    st = _require_state()
+    fs = st.factor_summary
+    if fs is None:
+        raise HTTPException(status_code=404, detail="No factor summary cached.")
+    if "factor" not in fs.columns:
+        raise HTTPException(status_code=404, detail="Factor table has no 'factor' column.")
+    row = fs[fs["factor"].astype(str) == factor_name]
+    if row.empty:
+        avail = fs["factor"].astype(str).tolist()[:50]
+        raise HTTPException(
+            status_code=404, detail=f"Factor '{factor_name}' not found. Try: {avail}"
+        )
+    return _clean(row.iloc[0].to_dict())
+
+
+# ---------------------------------------------------------------------------
+# agent + re-computation endpoints (operate on the cached run)
+# ---------------------------------------------------------------------------
+@app.post("/agent/query")
+def agent_query(req: AgentQueryRequest) -> dict:
+    st = _require_state()
+    if req.tool not in CATALOG:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown tool '{req.tool}'. Known: {list(CATALOG)}",
+        )
+    results = run_tools(st.as_tool_state())
+    r = results.get(req.tool)
+    if r is None or not r.ok:
+        raise HTTPException(status_code=404, detail=f"Tool '{req.tool}' returned no data.")
+    return _clean({"tool": req.tool, "ok": r.ok, "note": r.note, "data": r.data})
+
+
+@app.post("/optimize")
+def optimize(req: OptimizeRequest) -> dict:
+    """Re-build the portfolio with new method / vol target on the cached panel."""
+    st = _require_state()
+    panel = st.panel
+    if panel is None or st.signal_panel is None:
+        raise HTTPException(status_code=404, detail="No panel/signals cached to optimise.")
+    overrides = {}
+    if req.method:
+        overrides["method"] = req.method
+    if req.target_volatility is not None:
+        overrides["target_volatility"] = req.target_volatility
+    cfg = st.config.get("portfolio", {})
+    cfg = {**cfg, **overrides}
+    cons = PortfolioConstructor(panel, cfg, st.config.get("risk", {}))
+    weights = cons.construct(st.signal_panel)
+    latest = weights.iloc[:, -1]
+    latest = latest[latest.abs() > 0]
+    return _clean(
+        {
+            "method": cfg.get("method"),
+            "target_volatility": cfg.get("target_volatility"),
+            "n_assets": int((latest.abs() > 0).sum()),
+            "gross_exposure": float(latest.abs().sum()),
+            "top_holdings": {
+                str(k): float(v)
+                for k, v in latest.abs().sort_values(ascending=False).head(10).items()
+            },
+        }
+    )
+
+
+@app.post("/backtests")
+def backtests(req: BacktestRequest) -> dict:
+    """Re-run the backtest on the cached panel with the supplied overrides."""
+    st = _require_state()
+    panel = st.panel
+    if panel is None or st.signal_panel is None:
+        raise HTTPException(status_code=404, detail="No panel/signals cached to backtest.")
+    bcfg = dict(st.config.get("backtest", {}))
+    if req.execution_lag_days is not None:
+        bcfg["execution_lag_days"] = req.execution_lag_days
+    if req.rebalance is not None:
+        bcfg["rebalance"] = req.rebalance
+    if req.cost_rate is not None:
+        bcfg["cost_rate"] = req.cost_rate
+    bt = BacktestEngine(
+        panel,
+        constructor=PortfolioConstructor(
+            panel, st.config.get("portfolio", {}), st.config.get("risk", {})
+        ),
+        signals=st.signal_panel,
+        ic=st.model_eval.summary.get("rank_ic_mean", 0.03) if st.model_eval is not None else 0.03,
+        config=BacktestConfig.from_dict(bcfg),
+    ).run()
+    return _clean({"summary": bt.summary(), "diagnostics": bt.diagnostics})
 
 
 @app.get("/report")

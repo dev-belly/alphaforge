@@ -29,7 +29,11 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from alphaforge.backtest.metrics import MetricsConfig, performance_stats
+from alphaforge.backtest.metrics import (
+    MetricsConfig,
+    gross_returns_from_net,
+    performance_stats,
+)
 from alphaforge.data.calendar import execution_dates, rebalance_dates
 from alphaforge.execution.broker import BrokerSimulator
 from alphaforge.execution.costs import CostModel
@@ -109,6 +113,14 @@ class BacktestResult:
             "alpha_ann",
             "avg_turnover",
             "hit_rate",
+            "gross_total_return",
+            "gross_cagr",
+            "gross_ann_vol",
+            "gross_sharpe",
+            "gross_sortino",
+            "gross_calmar",
+            "gross_max_drawdown",
+            "cost_drag_cagr",
         ]
         return {k: self.metrics.get(k) for k in keys if k in self.metrics}
 
@@ -342,6 +354,29 @@ class BacktestEngine:
             turnover=turnover_s,
             cost_drag=cost_drag,
         )
+
+        # Gross (pre-cost) metrics: reconstruct by adding the per-day cost drag
+        # back into the net return series. This makes the cost drag explicit and
+        # lets the report/API show gross vs net Sharpe/CAGR side by side.
+        gross_returns = gross_returns_from_net(returns_s, costs_s, equity_s, cfg.initial_capital)
+        gross_metrics = performance_stats(
+            gross_returns,
+            benchmark=bench,
+            config=self.metrics_config,
+            turnover=turnover_s,
+            cost_drag=0.0,
+        )
+        metrics["gross_total_return"] = gross_metrics["total_return"]
+        metrics["gross_cagr"] = gross_metrics["cagr"]
+        metrics["gross_ann_vol"] = gross_metrics["ann_vol"]
+        metrics["gross_sharpe"] = gross_metrics["sharpe"]
+        metrics["gross_sortino"] = gross_metrics["sortino"]
+        metrics["gross_calmar"] = gross_metrics["calmar"]
+        metrics["gross_max_drawdown"] = gross_metrics["max_drawdown"]
+        # Cost drag expressed as the annualised CAGR gap gross - net.
+        metrics["cost_drag_cagr"] = float(gross_metrics["cagr"]) - float(metrics["cagr"])
+        if bench is not None:
+            metrics["gross_benchmark_cagr"] = gross_metrics.get("benchmark_cagr", float("nan"))
 
         log.info(
             f"Backtest {returns_s.index[0].date()} -> {returns_s.index[-1].date()} | "

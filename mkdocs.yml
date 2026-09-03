@@ -12,8 +12,19 @@ nav:
   - Home: index.md
   - Architecture: architecture.md
   - Quickstart: quickstart.md
+  - Modules:
+      - Risk (Regime & Stress): modules/risk.md
+      - API: modules/api.md
+      - Data & Quality: modules/data.md
 markdown_extensions:
   - admonition
   - tables
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - javascripts/mermaid.js

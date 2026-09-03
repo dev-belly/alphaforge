@@ -195,6 +195,37 @@ def _drawdown_duration(returns: pd.Series) -> int:
     return longest
 
 
+def gross_returns_from_net(
+    returns: pd.Series,
+    costs: pd.Series,
+    equity: pd.Series,
+    initial_capital: float,
+) -> pd.Series:
+    """Recover the pre-cost (gross) return series from a net series.
+
+    Transaction costs are deducted from NAV at the end of the session, so the
+    net return for day ``d`` is ``(nav_d - cost_d) / prev_nav_d - 1``.  Adding
+    the fractional drag ``cost_d / prev_nav_d`` back recovers the gross return
+    (the return the strategy would have earned had it paid no costs).  This makes
+    the *cost drag* explicit and reconciles gross vs net Sharpe/CAGR exactly,
+    without re-running the backtest.
+
+    Parameters
+    ----------
+    returns : net daily return series (the realised, cost-inclusive one).
+    costs   : per-day currency cost (often sparser than ``returns``; reindexed).
+    equity  : end-of-day net NAV curve, indexed like ``returns``.
+    initial_capital : NAV before the first return is earned.
+    """
+    idx = returns.index
+    prev_nav = equity.reindex(idx).shift(1)
+    prev_nav.iloc[0] = float(initial_capital)
+    cost = costs.reindex(idx).fillna(0.0)
+    # Guard against a zero/NaN starting NAV (e.g. first day with no prior book).
+    addback = (cost / prev_nav.replace(0.0, np.nan)).fillna(0.0)
+    return (returns + addback).reindex(idx)
+
+
 def monthly_returns(returns: pd.Series) -> pd.DataFrame:
     """Year x month table of compounded returns (the classic heat-map input)."""
     r = returns.dropna()
@@ -288,6 +319,7 @@ def summarise(metrics: dict) -> pd.DataFrame:
 __all__ = [
     "MetricsConfig",
     "performance_stats",
+    "gross_returns_from_net",
     "monthly_returns",
     "yearly_returns",
     "rolling_metrics",

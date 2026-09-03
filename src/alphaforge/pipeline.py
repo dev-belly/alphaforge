@@ -189,9 +189,7 @@ class ResearchPipeline:
             # benchmark is reindexed to monthly rebalance dates and is too short
             # (> 200 days are required by the classifier).
             bench_ret = (
-                panel.benchmark.dropna()
-                if getattr(panel, "benchmark", None) is not None
-                else None
+                panel.benchmark.dropna() if getattr(panel, "benchmark", None) is not None else None
             )
             if bench_ret is not None and len(bench_ret) >= 200:
                 state.regime = classify_regime(bench_ret)
