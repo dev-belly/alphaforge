@@ -231,7 +231,9 @@ trace every sentence to a metric.
 
 `pytest` uses a `slow` marker: fast unit + regression runs gate every push; the
 slow suite runs the full pipeline + live API. `ruff` (lint + format) and `mypy`
-(0 findings) gate too. CI is green on Python 3.10 / 3.11 / 3.12.
+(0 findings) gate too. CI is green on Python 3.10 / 3.11 / 3.12; the full
+suite (incl. the slow pipeline + API run) is additionally verified locally on
+Python 3.13 (pandas 3.0 / NumPy 2.5).
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
@@ -295,9 +297,10 @@ trading system or an investment product. Be explicit about what it is and is not
   shock the current book; they do not forecast the next regime.
 * **Single-node, in-process cache.** The API caches the last run in memory; a
   multi-user deployment needs a job queue + object store in front of it.
-* **Docker build needs registry egress.** `docker compose config` validates, but
-  pulling `python:3.11-slim` requires Docker Hub access; in a network-isolated
-  environment the image cannot be built (documented, not a code defect).
+* **Docker build needs a running daemon + registry egress.** `docker compose
+  config` validates the stack, but building the image pulls `python:3.11-slim`
+  from Docker Hub; in a daemon-less or network-isolated environment the image
+  cannot be built (documented, not a code defect).
 
 ## Case study
 
