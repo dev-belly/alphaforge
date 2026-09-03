@@ -233,7 +233,9 @@ trace every sentence to a metric.
 slow suite runs the full pipeline + live API. `ruff` (lint + format) and `mypy`
 (0 findings) gate too. CI is green on Python 3.10 / 3.11 / 3.12; the full
 suite (incl. the slow pipeline + API run) is additionally verified locally on
-Python 3.13 (pandas 3.0 / NumPy 2.5).
+Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is ~77%
+(measured with `pytest-cov` in the Integration job; the only uncovered module
+is the offline `vendors.py` Yahoo/AkShare adapter, which needs network).
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
@@ -309,7 +311,7 @@ Running the full pipeline on the synthetic `sample` provider
 
 * a **risk-model R²** around 0.5 — the style factors explain roughly half of
   cross-sectional variance (the rest is specific risk `D`);
-* a **factor-attribution R²** around 0.75 — most of the portfolio's excess return
+* a **factor-attribution R²** around 0.80 — most of the portfolio's excess return
   is explained by its style exposures;
 * a **Brinson active return** within ~1e-3 of the three-term allocation +
   selection + interaction split (the known approximation gap);

@@ -4,7 +4,7 @@
 PYTHON ?= python3
 PIP    ?= pip
 
-.PHONY: help install install-dev test test-fast lint fmt format ci run demo serve-api run-api dashboard run-dashboard assets docs-check docker-up docker-down docs clean
+.PHONY: help install install-dev test test-fast lint fmt format ci coverage run demo serve-api run-api dashboard run-dashboard assets docs-check docker-up docker-down docs clean
 
 .DEFAULT_GOAL := help
 
@@ -40,6 +40,9 @@ ci:  ## Run exactly what CI's test job enforces (ruff, mypy, docs nav, fast test
 	mypy src apps/api
 	$(PYTHON) scripts/check_docs.py
 	pytest -m "not slow"
+
+coverage:  ## Measure line coverage of the full suite with pytest-cov
+	$(PYTHON) -m pytest --cov=alphaforge --cov=apps --cov-report=term-missing
 
 run:  ## One-shot research run (writes research/reports/research_report.html)
 	$(PYTHON) scripts/run_research.py --start 2016-01-01 --end 2024-12-31
