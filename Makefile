@@ -4,7 +4,9 @@
 PYTHON ?= python3
 PIP    ?= pip
 
-.PHONY: help install install-dev test test-fast lint fmt ci run serve-api dashboard docs clean
+.PHONY: help install install-dev test test-fast lint fmt format ci run demo serve-api run-api dashboard run-dashboard docker-up docker-down docs clean
+
+.DEFAULT_GOAL := help
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -30,6 +32,8 @@ fmt:  ## Auto-format with ruff + black
 	ruff check --fix src apps tests
 	ruff format src apps tests
 
+format: fmt  ## Alias for `make fmt`
+
 ci:  ## What CI runs
 	ruff check src apps tests
 	pytest -m "not slow"
@@ -37,11 +41,24 @@ ci:  ## What CI runs
 run:  ## One-shot research run (writes research/reports/research_report.html)
 	$(PYTHON) scripts/run_research.py --start 2016-01-01 --end 2024-12-31
 
+demo:  ## Zero-setup demo: offline sample data -> full pipeline -> HTML report
+	$(PYTHON) -m alphaforge.cli --start 2016-01-01 --end 2024-12-31 --report-dir research/reports
+
 serve-api:  ## Launch the FastAPI research service on :8000
 	$(PYTHON) -m alphaforge.cli --serve-api --api-port 8000
 
+run-api: serve-api  ## Alias for `make serve-api`
+
 dashboard:  ## Launch the Streamlit dashboard
 	streamlit run apps/dashboard/streamlit_app.py
+
+run-dashboard: dashboard  ## Alias for `make dashboard`
+
+docker-up:  ## Build and start API + dashboard with docker compose
+	docker compose up --build
+
+docker-down:  ## Stop the docker compose stack
+	docker compose down
 
 docs:  ## Serve the mkdocs documentation locally
 	mkdocs serve

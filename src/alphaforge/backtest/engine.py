@@ -91,6 +91,7 @@ class BacktestResult:
     turnover: pd.Series
     costs: pd.Series
     metrics: dict
+    gross_equity: pd.Series | None = None  # pre-cost equity curve (cost-drag visual)
     benchmark: pd.Series | None = None
     diagnostics: dict = field(default_factory=dict)
     config: dict = field(default_factory=dict)
@@ -377,6 +378,8 @@ class BacktestEngine:
         metrics["cost_drag_cagr"] = float(gross_metrics["cagr"]) - float(metrics["cagr"])
         if bench is not None:
             metrics["gross_benchmark_cagr"] = gross_metrics.get("benchmark_cagr", float("nan"))
+        # Pre-cost (gross) equity curve for the cost-drag overlay in the report.
+        gross_equity = (1.0 + gross_returns).cumprod() * float(cfg.initial_capital)
 
         log.info(
             f"Backtest {returns_s.index[0].date()} -> {returns_s.index[-1].date()} | "
@@ -394,6 +397,7 @@ class BacktestEngine:
             turnover=turnover_s,
             costs=costs_s,
             metrics=metrics,
+            gross_equity=gross_equity,
             benchmark=bench,
             diagnostics={
                 "n_rebalances": int(n_rebalances),

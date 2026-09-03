@@ -11,6 +11,7 @@ generation here - the interpretation is the job of the research copilot
 from __future__ import annotations
 
 import html
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,6 +49,10 @@ PCT_KEYS = {
     "down_capture",
     "treynor",
     "cost_drag_ann",
+    "gross_total_return",
+    "gross_cagr",
+    "gross_ann_vol",
+    "gross_max_drawdown",
 }
 
 
@@ -79,6 +84,13 @@ def _fmt(value: Any) -> str:
     if value is None:
         return "-"
     return str(value)
+
+
+def _finite(v: Any) -> bool:
+    try:
+        return v is not None and math.isfinite(float(v))
+    except (TypeError, ValueError):
+        return False
 
 
 def _pct(value: Any) -> str:
@@ -119,6 +131,50 @@ def _kv_table(metrics: dict) -> str:
     return f"<table class='kv'>{''.join(rows)}</table>"
 
 
+# (display label, net metric key, gross metric key, is a percentage metric)
+_GROSS_NET_PAIRS = [
+    ("Total Return", "total_return", "gross_total_return", True),
+    ("CAGR", "cagr", "gross_cagr", True),
+    ("Ann. Volatility", "ann_vol", "gross_ann_vol", True),
+    ("Sharpe", "sharpe", "gross_sharpe", False),
+    ("Sortino", "sortino", "gross_sortino", False),
+    ("Calmar", "calmar", "gross_calmar", False),
+    ("Max Drawdown", "max_drawdown", "gross_max_drawdown", True),
+]
+
+
+def _gross_net_table(metrics: dict) -> str:
+    """Side-by-side Net (after-cost) vs Gross (pre-cost) + the gap."""
+    if not metrics or "gross_cagr" not in metrics or not _finite(metrics.get("gross_cagr")):
+        return ""
+    rows = []
+    for label, net_k, gross_k, is_pct in _GROSS_NET_PAIRS:
+        net = metrics.get(net_k)
+        gross = metrics.get(gross_k)
+        if net is None or gross is None:
+            continue
+        gap = (gross - net) if _finite(gross) and _finite(net) else float("nan")
+        net_s = _pct(net) if is_pct else _fmt(net)
+        gross_s = _pct(gross) if is_pct else _fmt(gross)
+        gap_s = _pct(gap) if is_pct else _fmt(gap)
+        rows.append(
+            f"<tr><td class='k'>{label}</td><td>{net_s}</td><td>{gross_s}</td>"
+            f"<td style='color:#c0392b'>{gap_s}</td></tr>"
+        )
+    cd = metrics.get("cost_drag_cagr")
+    if _finite(cd):
+        rows.append(
+            "<tr><td class='k'>Cost drag (CAGR gap)</td><td>-</td><td>-</td>"
+            f"<td style='color:#c0392b;font-weight:600'>{_pct(cd)}</td></tr>"
+        )
+    return (
+        "<table class='data'><thead><tr><th>Metric</th><th>Net (after-cost)</th>"
+        "<th>Gross (pre-cost)</th><th>Gap</th></tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table>"
+    )
+
+
 def _img(b64: str) -> str:
     return f'<img src="data:image/png;base64,{b64}" />' if b64 else ""
 
@@ -128,7 +184,13 @@ def build_html(inputs: ReportInputs) -> str:
     bt = inputs.backtest
     equity_b64 = drawdown_b64 = monthly_b64 = rc_b64 = brinson_b64 = quantile_b64 = ""
     if bt is not None:
-        equity_b64 = _img(charts.equity_curve(bt.equity, getattr(bt, "benchmark", None)))
+        equity_b64 = _img(
+            charts.equity_curve(
+                bt.equity,
+                getattr(bt, "benchmark", None),
+                getattr(bt, "gross_equity", None),
+            )
+        )
         drawdown_b64 = _img(charts.drawdown(bt.equity))
         monthly = _safe_monthly(bt.returns)
         monthly_b64 = _img(charts.monthly_heatmap(monthly))
@@ -177,6 +239,17 @@ ul.notes {{ font-size: 12.5px; color: #444; }}
 {equity_b64}
 {drawdown_b64}
 {_kv_table(bt.metrics) if bt is not None and bt.metrics else "<p><i>No backtest run.</i></p>"}
+
+{
+        (
+            "<h2>Cost Transparency &mdash; Gross vs Net</h2>"
+            "<p class='sub'>Gross = pre-cost return series reconstructed by adding the per-day cost drag "
+            "back into the net series (exact, no re-run). The gap is the real transaction-cost burden.</p>"
+            + _gross_net_table(bt.metrics)
+        )
+        if bt is not None and _gross_net_table(bt.metrics)
+        else ""
+    }
 {("<h2>Monthly Returns</h2>" + monthly_b64) if monthly_b64 else ""}
 
 <h2>Factor Research</h2>
@@ -184,11 +257,25 @@ ul.notes {{ font-size: 12.5px; color: #444; }}
 {quantile_b64}
 
 <div class="grid">
-{"<div><h2>Risk Decomposition</h2>" + rc_b64 + _table(inputs.risk_decomposition) + "</div>" if inputs.risk_decomposition is not None and not _is_empty(inputs.risk_decomposition) else ""}
-{"<div><h2>Attribution (Factor Bets)</h2>" + _table(_attr_table(inputs.factor_attribution)) + "</div>" if inputs.factor_attribution is not None else ""}
+{
+        "<div><h2>Risk Decomposition</h2>" + rc_b64 + _table(inputs.risk_decomposition) + "</div>"
+        if inputs.risk_decomposition is not None and not _is_empty(inputs.risk_decomposition)
+        else ""
+    }
+{
+        "<div><h2>Attribution (Factor Bets)</h2>"
+        + _table(_attr_table(inputs.factor_attribution))
+        + "</div>"
+        if inputs.factor_attribution is not None
+        else ""
+    }
 </div>
 
-    {("<h2>Brinson Attribution</h2>" + brinson_b64 + _table(inputs.brinson.by_sector)) if inputs.brinson is not None else ""}
+    {
+        ("<h2>Brinson Attribution</h2>" + brinson_b64 + _table(inputs.brinson.by_sector))
+        if inputs.brinson is not None
+        else ""
+    }
 
 {_regime_section(inputs.regime, inputs.regime_stats)}
 

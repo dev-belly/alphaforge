@@ -40,13 +40,28 @@ def _style(ax) -> None:
     ax.grid(True, alpha=0.25, linestyle=":")
 
 
-def equity_curve(equity: pd.Series, benchmark: pd.Series | None = None) -> str:
+def equity_curve(
+    equity: pd.Series,
+    benchmark: pd.Series | None = None,
+    gross: pd.Series | None = None,
+) -> str:
     fig, ax = plt.subplots(figsize=(8, 3.2))
-    ax.plot(equity.index, equity.to_numpy(), color=BLUE, lw=1.4, label="Strategy")
+    if gross is not None and not gross.dropna().empty:
+        g = gross.reindex(equity.index)
+        ax.plot(
+            g.index,
+            g.to_numpy(),
+            color=GREEN,
+            lw=1.0,
+            ls="--",
+            label="Gross (pre-cost)",
+            alpha=0.85,
+        )
+    ax.plot(equity.index, equity.to_numpy(), color=BLUE, lw=1.4, label="Net (after-cost)")
     if benchmark is not None and not benchmark.dropna().empty:
         b = benchmark.reindex(equity.index).dropna()
         ax.plot(b.index, b.to_numpy(), color=GREY, lw=1.0, label="Benchmark", alpha=0.8)
-    ax.set_title("Equity Curve")
+    ax.set_title("Equity Curve (Net vs Gross)")
     ax.legend(frameon=False, fontsize=8)
     _style(ax)
     return _fig_to_b64(fig)

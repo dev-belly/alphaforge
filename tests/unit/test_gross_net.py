@@ -16,6 +16,7 @@ import pandas as pd
 from alphaforge.backtest.engine import BacktestEngine
 from alphaforge.backtest.metrics import gross_returns_from_net
 from alphaforge.features.panel import MarketPanel
+from alphaforge.reporting.report import ReportInputs, build_html
 
 
 # --------------------------------------------------------------------------
@@ -151,3 +152,33 @@ def test_gross_metrics_present_in_summary():
     assert "gross_cagr" in s and "gross_sharpe" in s and "cost_drag_cagr" in s
     # summary metrics stay JSON-safe through performance_stats.
     assert np.isfinite(s["gross_sharpe"]) or s["gross_sharpe"] == s["gross_sharpe"]
+
+
+def test_backtest_exposes_gross_equity_curve():
+    panel = _synth_panel(seed=7)
+    bt = BacktestEngine(
+        panel=panel,
+        weight_fn=_equal_weight_fn(panel.symbols),
+        cost_model={"commission_bps": 4.0, "slippage_bps": 8.0, "impact_coeff_bps": 15.0},
+        config={"rebalance": "monthly"},
+    ).run()
+    assert bt.gross_equity is not None
+    assert len(bt.gross_equity) == len(bt.equity)
+    # Gross equity must end at or above net equity when costs were charged.
+    assert float(bt.gross_equity.iloc[-1]) >= float(bt.equity.iloc[-1]) - 1.0
+
+
+def test_report_renders_gross_net_section():
+    panel = _synth_panel(seed=8)
+    bt = BacktestEngine(
+        panel=panel,
+        weight_fn=_equal_weight_fn(panel.symbols),
+        cost_model={"commission_bps": 4.0, "slippage_bps": 8.0, "impact_coeff_bps": 15.0},
+        config={"rebalance": "monthly"},
+    ).run()
+    html_out = build_html(ReportInputs(backtest=bt))
+    assert "Gross vs Net" in html_out
+    assert "Cost Transparency" in html_out
+    assert "gross_cagr" in bt.metrics
+    # The gross equity overlay is requested (dashed gross line in the chart call).
+    assert "Net (after-cost)" in html_out and "Gross (pre-cost)" in html_out

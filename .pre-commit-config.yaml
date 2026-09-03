@@ -1,0 +1,45 @@
+# Run `pre-commit install` once after cloning.
+# Keep the hook versions aligned with the `dev` extra in pyproject.toml.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        files: ^src/
+        additional_dependencies:
+          - numpy
+          - pandas
+          - pydantic>=2.4
+        args: ["--ignore-missing-imports"]
+        # mypy on the full tree is slow and noisy; CI runs the authoritative
+        # check. The hook stays as a fast pre-push safety net.
+        stages: [pre-push]
+
+  - repo: local
+    hooks:
+      - id: pytest-fast
+        name: pytest (fast suite)
+        entry: python -m pytest -m "not slow" -q
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-push]

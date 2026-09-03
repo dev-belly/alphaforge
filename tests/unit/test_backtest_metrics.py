@@ -31,6 +31,49 @@ def test_performance_stats_with_benchmark():
     assert np.isfinite(m["alpha_ann"])
 
 
+def test_active_return_is_terminal_wealth_gap_not_compounded_spread():
+    """Active return must be the gap between two compounded curves.
+
+    Regression guard. The previous implementation returned
+    ``compound(s - b).iloc[-1] - 1``, i.e. it compounded the arithmetic return
+    *spread* as if it were a return. That is meaningless economically and
+    numerically explosive: any day with ``s - b < -1`` makes the factor
+    ``1 + (s - b)`` negative with magnitude > 1, so a few thousand sessions of
+    ``cumprod`` overflow float64 and every reported statistic becomes nan.
+    """
+    idx = pd.date_range("2021-01-01", periods=252, freq="B")
+    rng = np.random.default_rng(3)
+    strat = pd.Series(rng.normal(0.0006, 0.011, size=252), index=idx)
+    bench = pd.Series(rng.normal(0.0003, 0.012, size=252), index=idx)
+
+    m = performance_stats(strat, benchmark=bench)
+
+    # Align on the overlapping window the stats are actually computed over.
+    joined = pd.concat([strat.rename("s"), bench.rename("b")], axis=1).dropna()
+    expected = float((1 + joined["s"]).prod() - (1 + joined["b"]).prod())
+
+    assert np.isfinite(m["active_return"]), "active_return must never be nan/inf"
+    assert abs(m["active_return"] - expected) < 1e-9
+
+
+def test_relative_stats_finite_under_large_return_spread():
+    """A day where the strategy badly lags the benchmark must not blow up."""
+    idx = pd.date_range("2021-01-01", periods=500, freq="B")
+    rng = np.random.default_rng(5)
+    strat = pd.Series(rng.normal(0.0, 0.01, size=500), index=idx)
+    bench = pd.Series(rng.normal(0.0, 0.01, size=500), index=idx)
+    # Inject a spread far below -1 on a few days: the exact condition that used
+    # to overflow the cumulative product.
+    strat.iloc[100] = -0.90
+    bench.iloc[100] = 2.50
+    strat.iloc[250] = -0.95
+    bench.iloc[250] = 1.80
+
+    m = performance_stats(strat, benchmark=bench)
+    for key in ("active_return", "information_ratio", "tracking_error", "beta", "alpha_ann"):
+        assert np.isfinite(m[key]), f"{key} must stay finite, got {m[key]}"
+
+
 def test_brinson_identity():
     rng = np.random.default_rng(2)
     dates = pd.date_range("2022-01-01", periods=120, freq="B")

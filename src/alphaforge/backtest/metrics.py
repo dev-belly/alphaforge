@@ -147,6 +147,7 @@ def _relative_stats(r: pd.Series, bench: pd.Series, rf_period: float, ppy: float
 
     active = s - b
     te = float(active.std(ddof=1) * np.sqrt(ppy))
+    strat_curve = compound(s)
     bench_curve = compound(b)
     bench_cagr = float(bench_curve.iloc[-1] ** (ppy / max(len(b), 1)) - 1.0)
 
@@ -161,7 +162,13 @@ def _relative_stats(r: pd.Series, bench: pd.Series, rf_period: float, ppy: float
         "benchmark_return": float(bench_curve.iloc[-1] - 1.0),
         "benchmark_cagr": bench_cagr,
         "benchmark_vol": float(b.std(ddof=1) * np.sqrt(ppy)),
-        "active_return": float(compound(active).iloc[-1] - 1.0),
+        # Active return = terminal wealth difference, i.e. the arithmetic gap
+        # between the two compounded curves over the full period. NOTE: it is
+        # NOT compound(s - b) - 1. `s - b` is an arithmetic return *spread*, not
+        # a return, so compounding it is meaningless and numerically explosive:
+        # whenever s - b < -1 the factor 1 + (s - b) turns negative with
+        # magnitude > 1, and a few thousand sessions of cumprod overflow float64.
+        "active_return": float(strat_curve.iloc[-1] - bench_curve.iloc[-1]),
         "beta": beta,
         "alpha_ann": alpha_period * ppy,
         "correlation": float(s.corr(b)),
