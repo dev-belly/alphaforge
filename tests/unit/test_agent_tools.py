@@ -36,7 +36,9 @@ def _make_risk_result() -> RiskModelResult:
         factor_cov=factor_cov,
         specific_var=pd.Series(0.01, index=assets),
         covariance=cov,
-        factor_returns=pd.DataFrame(0.0, index=pd.date_range("2024-01-01", periods=3), columns=factors),
+        factor_returns=pd.DataFrame(
+            0.0, index=pd.date_range("2024-01-01", periods=3), columns=factors
+        ),
         residuals=pd.DataFrame(0.0, index=assets, columns=pd.date_range("2024-01-01", periods=3)),
         r_squared=0.51,
     )
