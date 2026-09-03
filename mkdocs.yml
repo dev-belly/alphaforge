@@ -16,6 +16,10 @@ nav:
       - Risk (Regime & Stress): modules/risk.md
       - API: modules/api.md
       - Data & Quality: modules/data.md
+      - Factor Research: modules/factor_research.md
+      - Portfolio Optimization: modules/portfolio_optimization.md
+      - Backtesting: modules/backtesting.md
+      - Research Copilot: modules/ai_agent.md
 markdown_extensions:
   - admonition
   - tables
