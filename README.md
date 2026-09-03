@@ -2,11 +2,22 @@
 
 **Institutional quant research & portfolio engineering platform**
 
+[![CI](https://github.com/dev-belly/alphaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/dev-belly/alphaforge/actions/workflows/ci.yml)
+
 AlphaForge is an end-to-end research stack that takes you from raw market data
 to a fully attributed, reproducible strategy report — without leaving Python.
 
-```
-data → panel → factors → ML (walk-forward) → risk model → portfolio → backtest → attribution → report → copilot
+```mermaid
+flowchart LR
+    A[Data / Providers] --> B[Panel & Quality]
+    B --> C[Factors 42]
+    C --> D[ML walk-forward CV]
+    D --> E[Risk Model Σ=B F Bᵀ+D]
+    E --> F[Portfolio Optimizer]
+    F --> G[Backtest engine]
+    G --> H[Attribution]
+    H --> I[HTML Report]
+    I --> J[Research Copilot]
 ```
 
 Every number in the report is produced by the same engine the CLI, the API and
@@ -83,6 +94,17 @@ scripts/             run_research.py + helpers
 docs/                mkdocs documentation
 research/reports/    generated HTML reports
 ```
+
+## Documentation
+
+* **Module guides** (mkdocs): `docs/` — [Factor Research](docs/modules/factor_research.md),
+  [Portfolio Optimization](docs/modules/portfolio_optimization.md),
+  [Backtesting](docs/modules/backtesting.md), [Risk](docs/modules/risk.md),
+  [Research Copilot](docs/modules/ai_agent.md), [Data & Quality](docs/modules/data.md),
+  [API](docs/modules/api.md).
+* **Case study** (real engine output on synthetic data): [research/case_study.md](research/case_study.md).
+* **Interview Q&A** (20 grounded questions): [research/interview_qa.md](research/interview_qa.md).
+* **Final engineering report**: [docs/FINAL_ENGINEERING_REPORT.md](docs/FINAL_ENGINEERING_REPORT.md).
 
 ## Testing
 
