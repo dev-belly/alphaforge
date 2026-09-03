@@ -8,6 +8,7 @@ them.  If a stage was not run, the tool returns ``None`` and the copilot says so
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -159,7 +160,7 @@ def analyze_market_regime(regime: pd.Series, backtest: Any = None) -> ToolResult
 
 
 # --------------------------------------------------------------------------
-CATALOG: dict[str, callable] = {
+CATALOG: dict[str, Callable] = {
     "factors": factor_summary_table,
     "model": model_evaluation,
     "backtest": backtest_metrics,

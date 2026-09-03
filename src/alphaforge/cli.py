@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import Any
 
 from alphaforge.utils.config import Config, set_global_seed
 from alphaforge.utils.logging import configure_logging, get_logger
@@ -69,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
 
     set_global_seed(args.seed)
 
-    overrides = {}
+    overrides: dict[str, Any] = {}
     if args.provider:
         overrides.setdefault("data", {})["provider"] = args.provider
     if args.model:

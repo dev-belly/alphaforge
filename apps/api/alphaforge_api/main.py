@@ -478,26 +478,43 @@ def agent_query(req: AgentQueryRequest) -> dict:
 
 @app.post("/optimize")
 def optimize(req: OptimizeRequest) -> dict:
-    """Re-build the portfolio with new method / vol target on the cached panel."""
+    """Re-build the portfolio with new method / vol target on the cached panel.
+
+    Reuses the event-driven engine's weight function, so the produced book is
+    identical to what a backtest would actually trade.  The response reports the
+    latest rebalance's *target* weights (pre-execution) - the construction output.
+    """
     st = _require_state()
     panel = st.panel
     if panel is None or st.signal_panel is None:
         raise HTTPException(status_code=404, detail="No panel/signals cached to optimise.")
-    overrides = {}
+    overrides: dict[str, Any] = {}
     if req.method:
         overrides["method"] = req.method
     if req.target_volatility is not None:
         overrides["target_volatility"] = req.target_volatility
-    cfg = st.config.get("portfolio", {})
-    cfg = {**cfg, **overrides}
-    cons = PortfolioConstructor(panel, cfg, st.config.get("risk", {}))
-    weights = cons.construct(st.signal_panel)
-    latest = weights.iloc[:, -1]
+    portfolio_cfg = {**dict(st.config.get("portfolio", {}) or {}), **overrides}
+    cons = PortfolioConstructor(panel, portfolio_cfg, st.config.get("risk", {}) or {})
+    bcfg = dict(st.config.get("backtest", {}) or {})
+    ic = st.model_eval.summary.get("rank_ic_mean", 0.03) if st.model_eval is not None else 0.03
+    bt = BacktestEngine(
+        panel,
+        constructor=cons,
+        signals=st.signal_panel,
+        ic=ic,
+        config=BacktestConfig.from_dict(bcfg),
+    ).run()
+    tw = bt.target_weights
+    if tw is None or tw.empty:
+        raise HTTPException(status_code=404, detail="Optimiser produced no target weights.")
+    latest = tw.iloc[-1]
     latest = latest[latest.abs() > 0]
     return _clean(
         {
-            "method": cfg.get("method"),
-            "target_volatility": cfg.get("target_volatility"),
+            "method": portfolio_cfg.get("method"),
+            "target_volatility": portfolio_cfg.get("target_volatility"),
+            "n_rebalance_dates": int(len(tw)),
+            "as_of": str(tw.index[-1].date()),
             "n_assets": int((latest.abs() > 0).sum()),
             "gross_exposure": float(latest.abs().sum()),
             "top_holdings": {

@@ -55,3 +55,19 @@ def test_run_then_serve(client):
     assert client.get("/attribution").status_code == 200
     assert client.get("/report").status_code == 200
     assert client.get("/briefing").status_code == 200
+
+    # /optimize rebuilds the book with a different method - it must return the
+    # latest rebalance's target weights, never a 500.  Regresses the bug where
+    # the endpoint called PortfolioConstructor.construct() with the wrong arity.
+    r_opt = client.post("/optimize", json={"method": "risk_parity"})
+    assert r_opt.status_code == 200, r_opt.text
+    opt = r_opt.json()
+    assert opt["method"] == "risk_parity"
+    assert opt["n_assets"] > 0
+    assert opt["gross_exposure"] > 0
+    assert opt["top_holdings"]
+
+    # /backtests re-runs the accounting loop with overrides.
+    r_bt = client.post("/backtests", json={"cost_rate": 0.001, "rebalance": "monthly"})
+    assert r_bt.status_code == 200, r_bt.text
+    assert r_bt.json()["summary"] is not None
