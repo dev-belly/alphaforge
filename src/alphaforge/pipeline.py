@@ -35,6 +35,7 @@ from alphaforge.risk.regime import (
     factor_performance_by_regime,
     regime_statistics,
 )
+from alphaforge.risk.stress import run_scenarios
 from alphaforge.utils.config import Config
 from alphaforge.utils.logging import Timer, get_logger
 
@@ -58,6 +59,7 @@ class ResearchState:
     brinson: Any = None
     factor_attr: Any = None
     regime: Any = None
+    stress: Any = None
     report_path: Path | None = None
     briefing: Any = None
     diagnostics: dict = field(default_factory=dict)
@@ -72,6 +74,7 @@ class ResearchState:
             "brinson": self.brinson,
             "factor_attr": self.factor_attr,
             "regime": self.regime,
+            "stress": self.stress,
             "config": self.config,
         }
 
@@ -215,6 +218,16 @@ class ResearchPipeline:
         except Exception as exc:  # noqa: BLE001
             log.warning(f"Market regime analysis skipped: {exc}")
 
+        # -- 6c. stress testing ----------------------------------------
+        try:
+            if state.risk_result is not None and state.weights is not None:
+                # Representative book: time-mean of absolute weights.
+                rep_w = state.weights.abs().mean(axis=0)
+                state.stress = run_scenarios(rep_w, state.risk_result)
+                d["stress_pnl"] = {k: float(v.pnl_pct) for k, v in state.stress.items()}
+        except Exception as exc:  # noqa: BLE001
+            log.warning(f"Stress testing skipped: {exc}")
+
         # -- 7. attribution --------------------------------------------
         try:
             bench_w = (
@@ -262,6 +275,7 @@ class ResearchPipeline:
                 factor_attribution=state.factor_attr,
                 regime=state.regime,
                 regime_stats=d.get("regime_stats"),
+                stress=state.stress,
                 notes=self._notes(state),
             )
             # attach covariance for the risk-contribution chart

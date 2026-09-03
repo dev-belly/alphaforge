@@ -65,6 +65,7 @@ class ReportInputs:
     factor_attribution: Any | None = None
     regime: Any | None = None
     regime_stats: dict | None = None
+    stress: Any | None = None
     notes: list[str] = field(default_factory=list)
 
 
@@ -191,6 +192,8 @@ ul.notes {{ font-size: 12.5px; color: #444; }}
 
 {_regime_section(inputs.regime, inputs.regime_stats)}
 
+{_stress_section(inputs.stress)}
+
 <h2>Notes &amp; Caveats</h2>
 <ul class="notes">{notes_html}</ul>
 
@@ -271,6 +274,32 @@ def _regime_section(regime: Any, stats: dict | None) -> str:
         "<h2>Market Regime</h2>"
         "<p class='sub'>Per-day regime from benchmark trend &times; volatility (no future data).</p>"
         f"<div>{bar}</div>{table}"
+    )
+
+
+def _stress_section(stress: Any) -> str:
+    if not stress:
+        return ""
+    rows = []
+    for nm, res in stress.items():
+        worst = res.worst_holdings(3)
+        worst_txt = ", ".join(f"{w['symbol']} {w['contribution']:+.2%}" for w in worst)
+        rows.append(
+            "<tr>"
+            + "".join(
+                f"<td>{html.escape(str(x))}</td>"
+                for x in [nm, _pct(res.pnl_pct), worst_txt or "-"]
+            )
+            + "</tr>"
+        )
+    return (
+        "<h2>Stress Testing</h2>"
+        "<p class='sub'>Scenario P&amp;L from factor shocks on the representative book "
+        "(time-mean of absolute weights). Deterministic, no Monte Carlo.</p>"
+        "<table class='data'><thead><tr><th>scenario</th><th>pnl</th>"
+        "<th>worst holdings</th></tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table>"
     )
 
 

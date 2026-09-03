@@ -184,6 +184,24 @@ class ResearchCopilot:
                     f"Sharpe {b.get('sharpe', float('nan')):.2f}); worst {worst} "
                     f"(ann {w.get('ann_return', float('nan')):+.2%})."
                 )
+        stress_data = self._get(results, "stress")
+        if stress_data:
+            losses = {
+                nm: d.get("pnl_pct", 0.0) for nm, d in stress_data.items() if isinstance(d, dict)
+            }
+            if losses:
+                worst_nm = min(losses, key=losses.get)
+                findings.append(
+                    f"Stress: {len(losses)} scenarios; worst {worst_nm} "
+                    f"{losses[worst_nm]:+.2%}."
+                )
+                severe = [nm for nm, v in losses.items() if v < -0.10]
+                if severe:
+                    warnings.append(
+                        "Stress: "
+                        + ", ".join(f"{nm} {losses[nm]:+.2%}" for nm in severe)
+                        + " exceed a 10% loss - review factor tilts."
+                    )
         return findings, warnings
 
     def _repro_checks(self, results: dict[str, ToolResult], state: dict) -> list[str]:

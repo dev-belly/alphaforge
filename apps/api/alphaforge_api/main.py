@@ -177,6 +177,11 @@ def _serialize_state(state: ResearchState) -> dict:
             "brinson": brinson,
             "factor_attribution": factor_attr,
             "regime": regime,
+            "stress": (
+                {nm: _clean(r.to_dict()) for nm, r in state.stress.items()}
+                if state.stress is not None
+                else None
+            ),
             "briefing": briefing,
             "report_path": str(state.report_path) if state.report_path else None,
         }
@@ -322,6 +327,14 @@ def regime() -> dict:
     )
 
 
+@app.get("/stress")
+def stress() -> dict:
+    s = _STATE["state"].stress if _STATE["state"] else None
+    if not s:
+        raise HTTPException(status_code=404, detail="No stress book cached. POST /research/run first.")
+    return _clean({nm: r.to_dict() for nm, r in s.items()})
+
+
 @app.get("/report")
 def report() -> FileResponse:
     if _STATE["state"] is None or not _STATE["state"].report_path:
@@ -355,5 +368,6 @@ __all__ = [
     "risk",
     "briefing",
     "regime",
+    "stress",
     "report",
 ]

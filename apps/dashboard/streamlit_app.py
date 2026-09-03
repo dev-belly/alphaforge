@@ -241,6 +241,25 @@ def main() -> None:
     else:
         st.info("Market regime not available for this run.")
 
+    # ---- stress testing ----------------------------------------------------
+    st.subheader("Stress Testing")
+    stress = state.stress
+    if stress:
+        rows = []
+        for nm, res in stress.items():
+            worst = res.worst_holdings(3)
+            worst_txt = ", ".join(f"{w['symbol']} {w['contribution']:+.2%}" for w in worst)
+            rows.append({"scenario": nm, "pnl": res.pnl_pct, "worst_holdings": worst_txt})
+        stress_df = pd.DataFrame(rows)
+        st.dataframe(
+            stress_df,
+            use_container_width=True,
+            height=200,
+            column_config={"pnl": st.column_config.NumberColumn(format="%.2%")},
+        )
+    else:
+        st.info("Stress testing not available for this run.")
+
     # ---- risk + attribution ------------------------------------------------
     rcol1, rcol2 = st.columns(2)
     with rcol1:

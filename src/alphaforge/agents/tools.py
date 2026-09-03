@@ -106,6 +106,23 @@ def config_snapshot(config: dict) -> ToolResult:
     return ToolResult("config", True, config, "effective configuration")
 
 
+def stress_test(stress: dict) -> ToolResult:
+    """Scenario P&L book: per-scenario portfolio loss under factor shocks."""
+    if not stress:
+        return ToolResult("stress", False, None, "stress not run")
+    try:
+        data = {nm: r.to_dict() for nm, r in stress.items()}
+        worst = min(stress.values(), key=lambda r: r.pnl_pct)
+        return ToolResult(
+            "stress",
+            True,
+            data,
+            f"{len(stress)} scenarios; worst {worst.scenario} {worst.pnl_pct:+.2%}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return ToolResult("stress", False, None, str(exc))
+
+
 def analyze_market_regime(regime: pd.Series, backtest: Any = None) -> ToolResult:
     """Cross-sectional regime split: label counts + per-regime portfolio stats.
 
@@ -150,6 +167,7 @@ CATALOG: dict[str, callable] = {
     "risk": risk_decomposition,
     "attribution": attribution_summary,
     "regime": analyze_market_regime,
+    "stress": stress_test,
     "quality": data_quality,
     "config": config_snapshot,
 }
@@ -176,6 +194,8 @@ def run_tools(state: dict) -> dict[str, ToolResult]:
         results["attribution"] = attribution_summary(state.get("brinson"), state.get("factor_attr"))
     if "regime" in state:
         results["regime"] = analyze_market_regime(state["regime"], state.get("backtest"))
+    if "stress" in state:
+        results["stress"] = stress_test(state["stress"])
     if "quality" in state:
         results["quality"] = data_quality(state["quality"])
     if "config" in state:
