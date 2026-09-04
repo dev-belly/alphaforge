@@ -321,7 +321,12 @@ class EastMoneyProvider(DataProvider):
     _UT = os.environ.get("ALPHAFORGE_EASTMONEY_UT", "fa5fd1943c7b386f172d6893dbfba10b")
 
     def __init__(self, timeout: int = 20) -> None:
-        import requests  # lightweight; already present via yfinance
+        try:
+            import requests
+        except ImportError as exc:
+            raise ProviderUnavailableError(
+                "requests is not installed. Install it with `pip install requests`."
+            ) from exc
 
         self._requests = requests
         self.timeout = timeout

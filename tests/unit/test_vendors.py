@@ -407,6 +407,20 @@ def test_yahoo_raises_actionable_error_when_dependency_missing(
         YahooFinanceProvider()
 
 
+def test_eastmoney_raises_actionable_error_when_dependency_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The key-less A-share backend is the default ``akshare`` provider.
+
+    A bare ``ModuleNotFoundError`` here would crash the run instead of letting the
+    platform fall back to the local/sample provider, so the adapter must raise the
+    documented :class:`ProviderUnavailableError` with an install hint.
+    """
+    monkeypatch.setitem(sys.modules, "requests", None)
+    with pytest.raises(ProviderUnavailableError, match="pip install requests"):
+        EastMoneyProvider()
+
+
 def test_provider_unavailable_error_is_runtime_error() -> None:
     assert issubclass(ProviderUnavailableError, RuntimeError)
 

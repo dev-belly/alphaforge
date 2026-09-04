@@ -40,6 +40,9 @@ dependencies = [
     "loguru>=0.7",
     "pydantic>=2.4",
     "pydantic-settings>=2.0",
+    # Required by the default (key-less) `akshare`/EastMoney A-share backend,
+    # which calls the quote API directly instead of pulling in the heavy SDK.
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]

@@ -17,7 +17,9 @@ __all__ = [
 
 def get_provider(name: str, **kwargs) -> DataProvider:
     """Factory used by the pipeline so providers stay swappable via config."""
-    name = (name or "sample").lower()
+    # A blank config value (None, "" or whitespace from a YAML/ENV file) means
+    # "unset" -> stay on synthetic data rather than failing on a phantom name.
+    name = (name or "").strip().lower() or "sample"
     if name in {"sample", "synthetic"}:
         return SampleDataProvider(**kwargs)
     if name in {"local", "parquet"}:
