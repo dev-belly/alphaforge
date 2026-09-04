@@ -236,12 +236,17 @@ trace every sentence to a metric.
 slow suite runs the full pipeline + live API. `ruff` (lint + format) and `mypy`
 (0 findings) gate too. CI is green on Python 3.10 / 3.11 / 3.12; the full
 suite (incl. the slow pipeline + API run) is additionally verified locally on
-Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is ~81%
-(measured with `pytest-cov` in the Integration job). Every module is exercised;
-the only 0% file is `cli.py`, which is driven by the demo as a subprocess and so
-is not traced by pytest. The `yahoo` / `akshare` adapters are covered offline
-(100% on `vendors.py`) with fakes injected into `sys.modules` — no network
-needed, no flakiness.
+Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is ~84%
+(measured with `pytest-cov` in the Integration job), and **no module sits at 0%**.
+Anything that cannot be exercised for real is exercised against fakes instead:
+
+* `yahoo` / `akshare` — parsing, column mapping and failure handling are tested
+  offline (100% on `vendors.py`) with fakes injected into `sys.modules`; only the
+  live HTTP path is unvalidated, because CI has no egress.
+* `cli` — argument parsing, symbol normalisation and the API-server branch are
+  tested in-process with a fake pipeline (97%); the real end-to-end run is
+  covered by the slow integration test.
+* `local` — the Parquet backend is tested against a `tmp_path` store (100%).
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
