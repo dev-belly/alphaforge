@@ -130,8 +130,11 @@ meaningful signal):
 `alphaforge.data.providers` exposes one interface (`fetch_prices`,
 `fetch_fundamentals`, `fetch_macro`, `fetch_constituents`, `fetch_industry`,
 `benchmark_prices`, `symbols`). The bundled `sample` provider is fully synthetic
-but point-in-time; `local` reads Parquet; `yahoo` / `akshare` are live adapters
-(import-clean, network-unvalidated in CI). `tushare` is a reserved slot. Every
+but point-in-time; `local` reads Parquet; `yahoo` / `akshare` are live adapters.
+Their parsing, column-mapping and failure handling are unit-tested **offline**
+against injected fakes (`tests/unit/test_vendors.py`, 100% on `vendors.py`); only
+the live HTTP path is unvalidated, because CI has no egress. `tushare` is a
+reserved slot. Every
 ETL pass produces a quality report (coverage, staleness, survivorship flag) that
 is persisted next to the artefacts.
 
@@ -233,9 +236,12 @@ trace every sentence to a metric.
 slow suite runs the full pipeline + live API. `ruff` (lint + format) and `mypy`
 (0 findings) gate too. CI is green on Python 3.10 / 3.11 / 3.12; the full
 suite (incl. the slow pipeline + API run) is additionally verified locally on
-Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is ~77%
-(measured with `pytest-cov` in the Integration job; the only uncovered module
-is the offline `vendors.py` Yahoo/AkShare adapter, which needs network).
+Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is ~81%
+(measured with `pytest-cov` in the Integration job). Every module is exercised;
+the only 0% file is `cli.py`, which is driven by the demo as a subprocess and so
+is not traced by pytest. The `yahoo` / `akshare` adapters are covered offline
+(100% on `vendors.py`) with fakes injected into `sys.modules` — no network
+needed, no flakiness.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)

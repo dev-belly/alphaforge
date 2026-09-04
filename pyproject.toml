@@ -26,7 +26,9 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.24",
-    "pandas>=2.0",
+    # 2.2+ required: the code uses the "ME" (month-end) offset alias, which did
+    # not exist before pandas 2.2.
+    "pandas>=2.2",
     "scipy>=1.10",
     "statsmodels>=0.14",
     "scikit-learn>=1.3",
