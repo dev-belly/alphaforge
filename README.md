@@ -257,6 +257,10 @@ Anything that cannot be exercised for real is exercised against fakes instead:
 * `providers` — the config-driven factory is covered for every alias (100%), so a
   typo in the provider setting raises an actionable error instead of silently
   running against the wrong backend.
+* `portfolio` — the expected-returns bridge (Grinold `mu = shrunk_IC * z * sigma`)
+  is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
+  IC/volatility scaling, score de-meaning, outlier clipping, volatility-median
+  fill, annualisation by `sqrt(periods)`, and the L1-normalised alpha blend.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
