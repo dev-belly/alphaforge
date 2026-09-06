@@ -51,7 +51,12 @@ def _resolve_symbols(
         from alphaforge.data.providers.vendors import AKSHARE_DEFAULT_UNIVERSE
 
         return list(AKSHARE_DEFAULT_UNIVERSE)
-    raise ValueError(f"Unsupported data provider: {provider.name!r}")
+    # Any other backend - notably the local Parquet store, the default production
+    # backend - declares its own universe. Only fail when it cannot.
+    try:
+        return list(provider.symbols())
+    except NotImplementedError:
+        raise ValueError(f"Unsupported data provider: {provider.name!r}") from None
 
 
 @dataclass
@@ -120,9 +125,12 @@ class DataPipeline:
                 log.warning("Data quality gates tripped - see the persisted report")
 
         # Attach industry classification where the provider did not supply it.
-        if "industry" in prices.columns:
-            missing = prices["industry"].isna() if prices["industry"].notna().any() else None
-            if missing is not None and missing.any() and not industry.empty:
+        # The backfill must run whenever a gap exists - gating it on
+        # ``notna().any()`` meant a panel with *no* classification at all was
+        # left unfilled, i.e. it no-oped exactly when it was needed most.
+        if "industry" in prices.columns and not industry.empty:
+            missing = prices["industry"].isna()
+            if missing.any():
                 mapping = industry.set_index("symbol")["industry"]
                 prices.loc[missing, "industry"] = prices.loc[missing, "symbol"].map(mapping)
 
@@ -232,7 +240,10 @@ def _fetch_benchmark_returns(
     """Fetch the provider benchmark and return it as a daily *return* series."""
     try:
         bench = provider.benchmark_prices(index_id, start, end)
-    except NotImplementedError:
+    except (NotImplementedError, FileNotFoundError):
+        # ``NotImplementedError`` = the provider has no benchmark concept at all;
+        # ``FileNotFoundError`` = a file-backed store (e.g. the local Parquet
+        # backend) simply has none persisted. Neither should fail the ETL run.
         log.info("Provider supplies no benchmark series")
         return None
     if bench is None or len(bench) == 0:

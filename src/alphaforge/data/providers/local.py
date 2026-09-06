@@ -42,6 +42,18 @@ class LocalParquetProvider(DataProvider):
             raise ValueError(f"{path} is missing required columns: {missing}")
         return df
 
+    def symbols(self) -> list[str]:
+        """The universe this backend can serve = whatever is persisted.
+
+        Without this the pipeline could not run unconfigured against the local
+        store - it only knew how to resolve a universe for the sample and live
+        vendors - which made the default production backend unusable.
+        """
+        df = self._read("prices.parquet", PRICE_COLUMNS)
+        if df.empty or "symbol" not in df.columns:
+            return []
+        return sorted(str(s) for s in df["symbol"].dropna().unique())
+
     def fetch_prices(
         self, symbols: Sequence[str] | None = None, start=None, end=None
     ) -> pd.DataFrame:
