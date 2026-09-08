@@ -92,6 +92,24 @@ def build_panel(
     raw_close = pivot("close")
     volume = pivot("volume")
     market_cap = pivot("market_cap")
+    dollar_volume = close * volume
+
+    # Some public sources (including the bundled real-data builder) carry no
+    # shares-outstanding history, so a true market cap simply does not exist.
+    # Rather than fabricate one - which would silently corrupt the size factor,
+    # size neutralisation and every risk-model regression weight derived from it
+    # - fall back to a *labelled* trailing dollar-volume proxy. The label rides
+    # in ``metadata`` so reports can disclose the substitution instead of
+    # presenting it as a real capitalisation.
+    mcap_source = "reported"
+    if market_cap.isna().all().all() or market_cap.empty:
+        log.warning(
+            "No market capitalisation in the source data - using a trailing "
+            "252d median dollar-volume proxy (metadata: market_cap_source)."
+        )
+        market_cap = dollar_volume.rolling(252, min_periods=60).median()
+        mcap_source = "dollar_volume_proxy"
+
     industry_long = (
         df[["symbol", "industry"]].drop_duplicates("symbol").set_index("symbol")["industry"]
     )
@@ -112,7 +130,6 @@ def build_panel(
     universe &= close.notna()
 
     returns = close.pct_change(fill_method=None)
-    dollar_volume = close * volume
 
     panel = MarketPanel(
         dates=pd.DatetimeIndex(close.index),
@@ -125,7 +142,10 @@ def build_panel(
         universe=universe,
         industry=industry,
         benchmark=benchmark,
-        metadata={"provenance": str(getattr(prices, "attrs", {}).get("provenance", "UNKNOWN"))},
+        metadata={
+            "provenance": str(getattr(prices, "attrs", {}).get("provenance", "UNKNOWN")),
+            "market_cap_source": mcap_source,
+        },
     )
     log.info(
         f"MarketPanel: {len(panel)} dates x {len(panel.symbols)} symbols | "
