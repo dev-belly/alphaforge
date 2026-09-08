@@ -248,9 +248,10 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   covered by the slow integration test.
 * `local` — the Parquet backend is tested against a `tmp_path` store (100%),
   including the universe it reports to the ETL from persisted artefacts.
-* `pipeline` — the ETL entry point is driven through a fake provider (95%):
-  universe resolution, the empty-panel hard failure, benchmark-as-returns and
-  the persisted-bundle round trip.
+* `pipeline` — the ETL entry point is driven through a fake provider (100%):
+  universe resolution, the empty-panel hard failure, benchmark-as-returns, the
+  persisted-bundle round trip, the quality-gate warning, and the persist /
+  reload paths for non-empty fundamentals, macro and constituents.
 * `storage` — the Parquet store and its DuckDB surface are exercised against a
   `tmp_path` (100%), including the incremental upsert that must correct a
   `(date, symbol)` bar in place rather than duplicate it.

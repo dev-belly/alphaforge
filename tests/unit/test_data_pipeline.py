@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from alphaforge.data import pipeline as etl_pipeline
 from alphaforge.data.pipeline import (
     DataPipeline,
     _fetch_benchmark_returns,
@@ -76,6 +77,47 @@ def _panel(
     return pd.concat(frames, ignore_index=True)
 
 
+#: Distinguishes "this provider has no benchmark concept" (raises) from an
+#: explicit "the provider returned nothing" (``None`` / empty series).
+_UNSET = object()
+
+
+def _fundamentals() -> pd.DataFrame:
+    """A non-empty fundamentals frame carrying a ``report_date`` column."""
+    return pd.DataFrame(
+        {
+            "symbol": list(SYMBOLS),
+            "fiscal_period": ["2023Q4", "2023Q4"],
+            "report_date": ["2024-02-01", "2024-02-01"],
+            "revenue": [1.0e6, 2.0e6],
+            "net_income": [1.0e5, 2.0e5],
+        }
+    )
+
+
+def _macro() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": ["2024-01-02", "2024-01-03"],
+            "series_id": ["GDP", "GDP"],
+            "value": [1.0, 1.1],
+        }
+    )
+
+
+def _constituents(days: int = 70) -> pd.DataFrame:
+    """Index membership for every panel date, so the universe is not starved."""
+    dates = pd.bdate_range("2024-01-02", periods=days)
+    return pd.DataFrame(
+        {
+            "date": list(dates) * len(SYMBOLS),
+            "symbol": [s for s in SYMBOLS for _ in range(days)],
+            "index_id": "SP500_SAMPLE",
+            "weight": 0.5,
+        }
+    )
+
+
 class _FakeProvider(DataProvider):
     """Deterministic provider: whatever the test injects is what the ETL sees."""
 
@@ -84,8 +126,11 @@ class _FakeProvider(DataProvider):
         name: str = "fake",
         prices: pd.DataFrame | None = None,
         industry: pd.DataFrame | None = None,
-        benchmark: pd.Series | None = None,
+        benchmark: object = _UNSET,
         no_benchmark: bool = False,
+        fundamentals: pd.DataFrame | None = None,
+        macro: pd.DataFrame | None = None,
+        constituents: pd.DataFrame | None = None,
     ) -> None:
         self.name = name
         self._prices = _panel() if prices is None else prices
@@ -96,6 +141,9 @@ class _FakeProvider(DataProvider):
         )
         self._benchmark = benchmark
         self._no_benchmark = no_benchmark
+        self._fundamentals = fundamentals
+        self._macro = macro
+        self._constituents = constituents
         self.calls: list[dict] = []
 
     def fetch_prices(self, symbols: Sequence[str], start: str, end: str) -> pd.DataFrame:
@@ -103,23 +151,31 @@ class _FakeProvider(DataProvider):
         return self._prices.copy()
 
     def fetch_fundamentals(self, symbols: Sequence[str], start: str, end: str) -> pd.DataFrame:
-        return self.empty_frame(FUNDAMENTAL_COLUMNS)
+        if self._fundamentals is None:
+            return self.empty_frame(FUNDAMENTAL_COLUMNS)
+        return self._fundamentals.copy()
 
     def fetch_constituents(self, index_id: str, start: str, end: str) -> pd.DataFrame:
-        return self.empty_frame(CONSTITUENT_COLUMNS)
+        if self._constituents is None:
+            return self.empty_frame(CONSTITUENT_COLUMNS)
+        return self._constituents.copy()
 
     def fetch_macro(self, series: Sequence[str], start: str, end: str) -> pd.DataFrame:
-        return self.empty_frame(MACRO_COLUMNS)
+        if self._macro is None:
+            return self.empty_frame(MACRO_COLUMNS)
+        return self._macro.copy()
 
     def fetch_industry(self, symbols: Sequence[str]) -> pd.DataFrame:
         return self._industry.copy()
 
     def benchmark_prices(self, index_id: str, start: str, end: str) -> pd.Series:
-        if self._no_benchmark:
+        if self._no_benchmark or self._benchmark is _UNSET:
             raise NotImplementedError(f"{self.name} does not provide benchmark series")
+        # An explicitly injected None/empty series models a vendor that answers
+        # the call but has no rows - the ETL must treat that as "no benchmark".
         if self._benchmark is None:
-            raise NotImplementedError(f"{self.name} does not provide benchmark series")
-        return self._benchmark.copy()
+            return None  # type: ignore[return-value]
+        return self._benchmark.copy()  # type: ignore[union-attr]
 
     def symbols(self) -> list[str]:
         return list(SYMBOLS)
@@ -304,16 +360,17 @@ def test_run_tolerates_a_provider_without_a_benchmark(store: DataStore) -> None:
     assert result.bundle.benchmark is None
 
 
-@pytest.mark.parametrize(
-    ("bench", "expected"),
-    [
-        (None, None),
-        (pd.Series(dtype=float), None),
-    ],
-)
-def test_fetch_benchmark_returns_degrades_to_none(bench: pd.Series | None, expected) -> None:
-    provider = _FakeProvider(no_benchmark=True)
-    assert _fetch_benchmark_returns(provider, "SP500", "2024-01-01", "2024-06-30") == expected
+@pytest.mark.parametrize("bench", [None, pd.Series(dtype=float)])
+def test_fetch_benchmark_returns_degrades_to_none(bench: pd.Series | None) -> None:
+    """A vendor that answers but returns no/empty levels yields None, not zeros.
+
+    The previous form of this test ignored its own ``bench`` parameter and always
+    raised instead, so the ``bench is None or len(bench) == 0`` guard was dead
+    code. A silent zero-series here would make every relative metric (alpha,
+    beta, tracking error) look plausible while being meaningless.
+    """
+    provider = _FakeProvider(benchmark=bench)
+    assert _fetch_benchmark_returns(provider, "SP500", "2024-01-01", "2024-06-30") is None
 
 
 def test_fetch_benchmark_returns_sorts_and_differences_once() -> None:
@@ -373,3 +430,70 @@ def test_load_bundle_degrades_when_optional_tables_are_absent(tmp_path: Path) ->
     assert bundle.macro.empty
     assert bundle.constituents.empty
     assert bundle.benchmark is None  # no persisted benchmark -> no silent zeros
+
+
+def test_load_bundle_coerces_dates_on_auxiliary_tables(store: DataStore) -> None:
+    """``load_bundle`` must return *typed* datetimes for the optional tables too.
+
+    ``DataStore.write`` performs no date coercion, so a parquet round-trip leaves
+    ``date`` / ``report_date`` as strings. Without the coercion on reload, every
+    downstream join, reindex or as-of merge against these tables silently matches
+    nothing instead of failing loudly.
+    """
+    provider = _FakeProvider(fundamentals=_fundamentals(), constituents=_constituents())
+    DataPipeline(provider=provider, store=store).run()
+
+    bundle = load_bundle(store.root)
+
+    assert not bundle.constituents.empty
+    assert pd.api.types.is_datetime64_any_dtype(bundle.constituents["date"])
+    assert not bundle.fundamentals.empty
+    assert pd.api.types.is_datetime64_any_dtype(bundle.fundamentals["report_date"])
+
+
+def test_run_warns_when_quality_gates_trip(
+    store: DataStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A panel that trips the quality gates must warn, not pass in silence.
+
+    ``clean_prices`` removes duplicates and non-positive rows, so the only way to
+    trip ``is_acceptable()`` is heavy missingness: ``close`` is NaN on half the
+    rows while ``adj_close`` - what the universe screens on - stays positive.
+
+    The warning is captured by spying on the module logger instead of ``caplog``:
+    the project logger installs its own stderr handler and does not propagate, so
+    ``caplog`` never sees these records.
+    """
+    prices = _panel()
+    prices.loc[prices.index[: len(prices) // 2], "close"] = np.nan
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        etl_pipeline.log, "warning", lambda msg, *args, **kwargs: warnings.append(str(msg))
+    )
+
+    result = DataPipeline(provider=_FakeProvider(prices=prices), store=store).run(persist=False)
+
+    assert not result.quality.is_acceptable()  # type: ignore[attr-defined]
+    assert any("quality gates tripped" in w for w in warnings)
+
+
+def test_run_persists_non_empty_auxiliary_tables(store: DataStore) -> None:
+    """The persist branch for fundamentals/macro/constituents had never executed.
+
+    Every fake provider returned empty auxiliary frames, so ``store.write`` was
+    only ever exercised for prices / universe / quality / industry / benchmark -
+    and ``write`` *refuses* empty frames, so a defect in these three writes
+    (wrong column, bad dtype, silent truncation) would surface only in production.
+    """
+    provider = _FakeProvider(
+        fundamentals=_fundamentals(), macro=_macro(), constituents=_constituents()
+    )
+    DataPipeline(provider=provider, store=store).run()
+
+    for table in ("fundamentals", "macro", "constituents"):
+        assert not store.read(table).empty, f"{table} was not persisted"
+
+    reloaded = store.read("constituents")
+    assert reloaded["symbol"].nunique() == len(SYMBOLS)
+    assert set(store.read("fundamentals")["symbol"]) == set(SYMBOLS)
