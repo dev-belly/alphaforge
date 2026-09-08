@@ -10,10 +10,17 @@ With an ``H``-day forward-return label, the label of an observation at date
 ``t`` is realised at ``t + H``.  A training sample whose label is still forming
 at the start of the validation window leaks information, so we
 
-* **purge** the last ``H`` observations of every training block, and
-* **embargo** ``embargo_days`` observations immediately after the training
-  block, which additionally kills the serial-correlation leakage that purging
-  alone does not address (López de Prado, *Advances in Financial ML*).
+* **purge** the training observations whose label is still forming when the test
+  block opens, and
+* **embargo** the test observations that sit within ``embargo_days`` of a
+  training observation, which additionally kills the serial-correlation leakage
+  that purging alone does not address (López de Prado, *Advances in Financial
+  ML*).
+
+Both rules are anchored on the *seam* between the two blocks, not on the end of
+the training set: in :class:`PurgedKFold` the training set wraps around the test
+block, so its last observation sits at the far right of the sample and says
+nothing about where the two blocks touch.
 """
 
 from __future__ import annotations
@@ -91,7 +98,9 @@ class WalkForwardSplitter:
                 pd.Timestamp(year=test_end_year, month=1, day=1) - pd.Timedelta(days=1),
                 dates.max(),
             )
-            if train_start >= dates.max() or test_start > dates.max():
+            # ``test_start`` is 1 January of a year that is <= ``dates.max().year``,
+            # so it can never fall past the end of the sample.
+            if train_start >= dates.max():
                 break
 
             train_mask = (dates >= train_start) & (dates <= train_end)
@@ -99,7 +108,7 @@ class WalkForwardSplitter:
             if train_mask.sum() < cfg.min_train_days or test_mask.sum() == 0:
                 continue
 
-            train_mask = self._purge(train_mask, dates, cfg.purge_days)
+            train_mask = self._purge(train_mask, test_mask, dates, cfg.purge_days)
             test_mask = self._embargo(train_mask, test_mask, dates, cfg.embargo_days)
             if train_mask.sum() < cfg.min_train_days or test_mask.sum() == 0:
                 continue
@@ -125,16 +134,35 @@ class WalkForwardSplitter:
 
     # ------------------------------------------------------------------
     @staticmethod
-    def _purge(train_mask: np.ndarray, dates: pd.DatetimeIndex, purge_days: int) -> np.ndarray:
-        """Drop the tail of the training block whose labels overlap the test set."""
+    def _purge(
+        train_mask: np.ndarray,
+        test_mask: np.ndarray,
+        dates: pd.DatetimeIndex,
+        purge_days: int,
+    ) -> np.ndarray:
+        """Drop the training observations whose label overlaps the test block.
+
+        An observation at ``t`` is labelled over the following ``purge_days``
+        (the forward-return horizon), so it leaks as soon as ``t + purge_days``
+        reaches into the test block.  The offending observations are the ones
+        immediately *before* the first test date - which is not the same thing as
+        the tail of the training set once the training set wraps around the test
+        block, as it does in :class:`PurgedKFold`.
+        """
         if purge_days <= 0:
             return train_mask
-        out = train_mask.copy()
-        pos = np.where(train_mask)[0]
-        if pos.size == 0:
+        out = np.asarray(train_mask, dtype=bool).copy()
+        if not out.any():
             return out
-        cutoff = dates[pos[-1]] - pd.Timedelta(days=int(purge_days))
-        out &= np.asarray(dates <= cutoff)
+        test_pos = np.where(np.asarray(test_mask, dtype=bool))[0]
+        if test_pos.size == 0:
+            return out
+        cutoff = dates[test_pos[0]] - pd.Timedelta(days=int(purge_days))
+        # Only the observations that *precede* the test block can carry a label
+        # that is still forming when it opens; a training observation to its
+        # right is labelled entirely after the test block has closed, so it is
+        # left alone.
+        out &= ~((np.asarray(dates) >= cutoff) & (np.asarray(dates) <= dates[test_pos[-1]]))
         return out
 
     @staticmethod
@@ -144,15 +172,30 @@ class WalkForwardSplitter:
         dates: pd.DatetimeIndex,
         embargo_days: int,
     ) -> np.ndarray:
-        """Remove the first ``embargo_days`` sessions of the test block."""
+        """Remove the test observations that sit inside the embargo buffer.
+
+        Serial correlation bleeds information across the train/test seam in both
+        directions, so *both* edges of the test block are trimmed: the head,
+        which abuts the training block that precedes it (walk-forward), and the
+        tail, which abuts the training block that follows it (the folds of
+        :class:`PurgedKFold` other than the last one).  Trimming only the head -
+        by anchoring on the last training date - emptied the test block of every
+        fold whose training set ends to its right.
+        """
         if embargo_days <= 0:
             return test_mask
-        out = test_mask.copy()
-        pos = np.where(train_mask)[0]
-        if pos.size == 0:
+        out = np.asarray(test_mask, dtype=bool).copy()
+        train_pos = np.where(np.asarray(train_mask, dtype=bool))[0]
+        if train_pos.size == 0 or not out.any():
             return out
-        cutoff = dates[pos[-1]] + pd.Timedelta(days=int(embargo_days))
-        out &= np.asarray(dates > cutoff)
+        gap = np.timedelta64(int(embargo_days), "D")
+        train_dates = np.asarray(dates[train_pos], dtype="datetime64[ns]")
+        all_dates = np.asarray(dates, dtype="datetime64[ns]")
+        lo = np.searchsorted(train_dates, all_dates - gap, side="left")
+        hi = np.searchsorted(train_dates, all_dates + gap, side="right")
+        # A test date is contaminated when at least one training date falls
+        # inside its embargo window.
+        out &= ~(hi > lo)
         return out
 
     def get_n_splits(self) -> int:  # sklearn-compatible hook
@@ -171,6 +214,11 @@ class PurgedKFold:
         self.embargo_days = embargo_days
 
     def split(self, dates: pd.DatetimeIndex) -> list[tuple[np.ndarray, np.ndarray]]:
+        """Split ``dates`` into ``n_splits`` chronological blocks.
+
+        ``dates`` must already be in chronological order: the returned masks are
+        positional over the array passed in.
+        """
         n = len(dates)
         bounds = np.linspace(0, n, self.n_splits + 1).astype(int)
         out = []
@@ -178,7 +226,7 @@ class PurgedKFold:
             test_idx = np.zeros(n, dtype=bool)
             test_idx[bounds[i] : bounds[i + 1]] = True
             train_idx = ~test_idx
-            train_idx = WalkForwardSplitter._purge(train_idx, dates, self.purge_days)
+            train_idx = WalkForwardSplitter._purge(train_idx, test_idx, dates, self.purge_days)
             test_idx = WalkForwardSplitter._embargo(train_idx, test_idx, dates, self.embargo_days)
             if train_idx.sum() and test_idx.sum():
                 out.append((train_idx, test_idx))

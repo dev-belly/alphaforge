@@ -89,7 +89,7 @@ from alphaforge.pipeline import run_research
 
 state = run_research(start="2016-01-01", end="2024-12-31")
 print(state.backtest.summary())
-print(state.report_path)          # research/reports/research_report.html
+print(state.report_path)  # research/reports/research_report.html
 ```
 
 Serve the research API:
@@ -267,6 +267,14 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
   IC/volatility scaling, score de-meaning, outlier clipping, volatility-median
   fill, annualisation by `sqrt(periods)`, and the L1-normalised alpha blend.
+* `models` — the walk-forward and purged-K-fold splitters are locked offline
+  (100% on `split.py`): training always ends before the test block opens, no
+  surviving training label is still forming when it opens (purge), and no test
+  observation sits within `embargo_days` of a training observation on **either**
+  edge of the block. Purge and embargo are anchored on the train/test seam
+  rather than on the last training date - anchoring on the latter silently
+  emptied 4 of the 5 `PurgedKFold` splits, turning cross-validation into a
+  single split.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
