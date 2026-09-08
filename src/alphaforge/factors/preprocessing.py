@@ -61,9 +61,8 @@ def group_mean(df: pd.DataFrame, mapping: pd.Series) -> pd.DataFrame:
             np.tile(means[:, None], (1, arr.shape[1])), index=df.index, columns=df.columns
         )
     for u in uniq:
+        # ``u`` comes from ``pd.unique(labels)``, so this match is never empty.
         cols = np.where(labels == u)[0]
-        if cols.size == 0:
-            continue
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             m = np.nanmean(arr[:, cols], axis=1)
@@ -97,13 +96,20 @@ def demean_panel(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def neutralize_continuous(y: pd.DataFrame, s: pd.DataFrame) -> pd.DataFrame:
-    """Residualise ``y`` on ``s`` separately for every date (with intercept)."""
+    """Residualise ``y`` on ``s`` separately for every date (with intercept).
+
+    A name with no factor value has no residual and stays missing. The
+    ``fill_value=0.0`` on the subtraction would otherwise substitute a zero
+    *before* subtracting and hand that name ``-beta * s`` - a fabricated score
+    that grows with the control, so the largest names received the most extreme
+    (and entirely invented) exposures.
+    """
     ym = y.sub(y.mean(axis=1), axis=0)
     sm = s.sub(s.mean(axis=1), axis=0)
     cov = (ym * sm).mean(axis=1)
     var = (sm**2).mean(axis=1)
     beta = cov / var.replace(0.0, np.nan)
-    return ym.sub(sm.mul(beta, axis=0), fill_value=0.0)
+    return ym.sub(sm.mul(beta, axis=0), fill_value=0.0).where(y.notna())
 
 
 class FactorPreprocessor:
@@ -138,6 +144,9 @@ class FactorPreprocessor:
         if cfg.industry_neutralize and len(self._industry):
             ind_mean = group_mean(df, self._industry)
             if cfg.size_neutralize:
+                # Which names we can actually score - preserved across the
+                # neutralisation so unscored names cannot acquire a residual.
+                scored = df.notna()
                 size_demeaned = self._size - group_mean(self._size, self._industry)
                 y_perp = df - ind_mean
                 s_perp = size_demeaned
@@ -146,7 +155,7 @@ class FactorPreprocessor:
                 cov = (y_perp_m * s_perp_m).mean(axis=1)
                 var = (s_perp_m**2).mean(axis=1)
                 beta = cov / var.replace(0.0, np.nan)
-                df = y_perp_m.sub(s_perp_m.mul(beta, axis=0), fill_value=0.0) + 0.0
+                df = y_perp_m.sub(s_perp_m.mul(beta, axis=0), fill_value=0.0).where(scored) + 0.0
             else:
                 df = df - ind_mean
         elif cfg.size_neutralize:

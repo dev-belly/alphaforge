@@ -258,6 +258,11 @@ Anything that cannot be exercised for real is exercised against fakes instead:
 * `providers` — the config-driven factory is covered for every alias (100%), so a
   typo in the provider setting raises an actionable error instead of silently
   running against the wrong backend.
+* `factors` — the cross-sectional preprocessing chain is locked offline (100% on
+  `preprocessing.py`): per-date winsorization / z-scoring / ranking, and
+  Frisch-Waugh-Lovell industry + size neutralisation asserted by **orthogonality**
+  rather than by "it ran". Unscored names must keep the neutral fill value, never
+  a residual invented from their size.
 * `portfolio` — the expected-returns bridge (Grinold `mu = shrunk_IC * z * sigma`)
   is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
   IC/volatility scaling, score de-meaning, outlier clipping, volatility-median
