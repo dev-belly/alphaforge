@@ -1,0 +1,118 @@
+# =============================================================================
+# AlphaForge - real-data research configuration (S&P 500)
+#
+# Build the dataset first:
+#     python scripts/fetch_real_data.py
+# then run:
+#     python scripts/run_real_research.py
+#
+# Differences vs configs/default.yaml are all consequences of the source data,
+# not arbitrary tuning choices:
+#   * provider=local        -> read the canonical tables built by fetch_real_data
+#   * the window ends 2019  -> that is where the benchmark (SPY) source ends
+#   * backtest starts 2005  -> the walk-forward model needs 4 training years
+#                              plus purge/embargo before the first test fold
+# =============================================================================
+
+project:
+  name: AlphaForge
+  seed: 42
+  timezone: UTC
+
+data:
+  provider: local
+  universe: SP500
+  start_date: "2000-01-01"
+  end_date: "2019-12-31"
+  cache_dir: data/processed
+  raw_dir: data/raw
+  storage_backend: parquet
+  # The source lists *current* index members and publishes each name's
+  # entry date, so entry is point-in-time but exits are unknown. Residual
+  # survivorship bias is real and disclosed in data/processed/DATA_PROVENANCE.md.
+  survivorship_bias_disclaimer: true
+  # Quarterly figures in the raw source are stamped on the *first* day of the
+  # quarter they describe, which is pure look-ahead. The builder re-stamps them
+  # at period end + this lag so they only become visible after a realistic
+  # publication delay.
+  fundamental_lag_days: 90
+
+universe:
+  benchmark: SP500
+  min_price: 5.0
+  min_adv_usd: 1_000_000
+  exclude_financials_for_value: false
+
+factor:
+  winsorize: true
+  winsorization: 0.01
+  standardize: true
+  rank_transform: false
+  industry_neutralize: true
+  size_neutralize: true
+  horizon: 21
+
+model:
+  type: ridge
+  params:
+    alpha: 1.0
+  target: forward_rank
+  walk_forward:
+    train_years: 4
+    test_years: 1
+    step_years: 1
+    embargo_days: 21
+    purge_days: 21
+    expanding: true
+
+portfolio:
+  method: mean_variance
+  long_only: true
+  fully_invested: true
+  max_weight: 0.05
+  min_weight: 0.0
+  target_volatility: 0.12
+  turnover_limit: 0.20
+  max_holdings: 50
+  cash_buffer: 0.0
+  max_industry_deviation: 0.03
+  risk_aversion: 5.0
+  tc_penalty: 0.5
+
+risk:
+  covariance_method: ledoit_wolf
+  ewma_halflife: 90
+  style_factors: [size, value, momentum, volatility, liquidity, quality]
+  shrinkage_intensity: null
+
+backtest:
+  start_date: "2005-01-01"
+  end_date: "2019-12-31"
+  rebalance: monthly
+  initial_capital: 10_000_000
+  execution_lag_days: 1
+  benchmark: SP500
+  allow_short: false
+
+cost:
+  commission_bps: 2.0
+  slippage_bps: 5.0
+  impact_coeff_bps: 10.0
+  participation_cap: 0.10
+  min_commission: 0.0
+
+reporting:
+  output_dir: research/reports
+  figure_dpi: 130
+  figure_format: png
+
+agent:
+  enabled: true
+  provider: none
+  model: null
+  max_tool_calls: 8
+
+logging:
+  level: INFO
+  json: false
+  file: logs/alphaforge.log
