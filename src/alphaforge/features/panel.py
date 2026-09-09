@@ -4,9 +4,11 @@ Everything downstream - factors, ML, optimiser, backtester - consumes the
 :class:`MarketPanel` produced here, so shape and alignment are guaranteed in a
 single place.
 
-``returns`` is computed from **adjusted** prices, and the forward-return helper
-lags by an execution lag, so a signal generated on date ``t`` can only ever be
-traded at ``t + execution_lag``.
+``returns`` is computed from **adjusted** prices. The forward-return helper is a
+*label*, not a P&L: it measures ``t -> t + horizon`` from the signal date itself
+unless an ``execution_lag`` is passed, so a fill model that can only trade at
+``t + 1`` should ask for ``execution_lag=1`` - otherwise the label contains a
+session of return the strategy never gets to hold.
 """
 
 from __future__ import annotations
@@ -48,13 +50,21 @@ class MarketPanel:
         """Close prices masked to the investable universe (NaN elsewhere)."""
         return self.close.where(self.universe)
 
-    def forward_returns(self, horizon: int = 21) -> pd.DataFrame:
+    def forward_returns(self, horizon: int = 21, execution_lag: int = 0) -> pd.DataFrame:
         """``horizon``-period forward return, aligned to the *signal* date.
 
         Used as the **label** for factor evaluation and ML. Never feed this into
         a feature matrix.
+
+        The window opens at ``t + execution_lag`` and closes at
+        ``t + execution_lag + horizon``. It defaults to ``0`` (the window opens
+        on the signal date), which is what every caller in this repo assumes; a
+        fill model that can only trade the next session should pass ``1`` so the
+        label does not include a session the strategy cannot capture.
         """
-        return self.close.shift(-horizon) / self.close - 1.0
+        entry = self.close.shift(-execution_lag)
+        exit_ = self.close.shift(-(horizon + execution_lag))
+        return exit_ / entry - 1.0
 
     def describe(self) -> dict:
         return {
@@ -76,15 +86,37 @@ def build_panel(
     """Pivot the long price table into the canonical wide panels."""
     if prices.empty:
         raise ValueError("Cannot build a panel from an empty price frame")
+    if "adj_close" not in prices.columns:
+        # Without adjusted prices there is no return, no label and no universe:
+        # an all-NaN panel would sail through as "zero breadth" instead.
+        raise ValueError(
+            "Cannot build a panel without an 'adj_close' column - prices, returns, "
+            "the forward-return label and the universe are all derived from it"
+        )
 
     df = prices.copy()
     df[date_col] = pd.to_datetime(df[date_col])
     df = df.sort_values([date_col, "symbol"])
 
+    # Industry is metadata, not a price: a source that omits it - or leaves a
+    # name unlabelled - gets the same explicit ``Unknown`` bucket the real-data
+    # builder uses, so the dummy blocks and the neutralisation group means agree
+    # on which names belong together.
+    if "industry" in df.columns:
+        df["industry"] = df["industry"].fillna("Unknown")
+    else:
+        df["industry"] = "Unknown"
+
     def pivot(value: str, how: str = "last") -> pd.DataFrame:
         if value not in df.columns:
+            # Float, not object: an all-NaN *object* frame silently poisons every
+            # downstream comparison and rolling window (``> 1e6`` raises,
+            # ``.rolling(252).median()`` refuses non-numeric input).
             return pd.DataFrame(
-                index=sorted(df[date_col].unique()), columns=sorted(df["symbol"].unique())
+                np.nan,
+                index=sorted(df[date_col].unique()),
+                columns=sorted(df["symbol"].unique()),
+                dtype=float,
             )
         return df.pivot_table(index=date_col, columns="symbol", values=value, aggfunc=how)
 
@@ -103,12 +135,21 @@ def build_panel(
     # presenting it as a real capitalisation.
     mcap_source = "reported"
     if market_cap.isna().all().all() or market_cap.empty:
-        log.warning(
-            "No market capitalisation in the source data - using a trailing "
-            "252d median dollar-volume proxy (metadata: market_cap_source)."
-        )
         market_cap = dollar_volume.rolling(252, min_periods=60).median()
-        mcap_source = "dollar_volume_proxy"
+        if market_cap.isna().all().all():
+            # No dollar volume either (or too little history) - say the size
+            # factor is unavailable instead of advertising a proxy that is NaN.
+            log.warning(
+                "No market capitalisation and no usable dollar volume - market_cap "
+                "is NaN, so the size factor and size neutralisation are empty."
+            )
+            mcap_source = "unavailable"
+        else:
+            log.warning(
+                "No market capitalisation in the source data - using a trailing "
+                "252d median dollar-volume proxy (metadata: market_cap_source)."
+            )
+            mcap_source = "dollar_volume_proxy"
 
     industry_long = (
         df[["symbol", "industry"]].drop_duplicates("symbol").set_index("symbol")["industry"]
@@ -155,12 +196,18 @@ def build_panel(
 
 
 def industry_dummies(industry: pd.DataFrame, drop_first: bool = True) -> dict[str, pd.DataFrame]:
-    """One dummy panel per industry - the exposure block for neutralisation."""
-    labels = pd.unique(industry.values.ravel())
-    labels = [x for x in labels if isinstance(x, str)]
+    """One dummy panel per industry - the exposure block for neutralisation.
+
+    Non-string labels (a missing industry, say) are dropped, so those names fall
+    into the omitted category. With ``drop_first`` the omitted category is the
+    alphabetically first one: the choice does not move the neutralised residual,
+    but keeping it stable means adding a symbol cannot silently change which
+    industry the intercept stands for.
+    """
+    labels = sorted(x for x in pd.unique(industry.values.ravel()) if isinstance(x, str))
     if drop_first and labels:
         labels = labels[1:]
-    return {lab: industry.eq(lab).astype(float) for lab in sorted(labels)}
+    return {lab: industry.eq(lab).astype(float) for lab in labels}
 
 
 __all__ = ["MarketPanel", "build_panel", "industry_dummies"]

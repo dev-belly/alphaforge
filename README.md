@@ -258,6 +258,15 @@ Anything that cannot be exercised for real is exercised against fakes instead:
 * `providers` — the config-driven factory is covered for every alias (100%), so a
   typo in the provider setting raises an actionable error instead of silently
   running against the wrong backend.
+* `features` — the wide panel that every factor, model, optimiser and backtest
+  consumes is locked offline (100% on `panel.py`): returns come from **adjusted**
+  prices and a price gap is never filled, a missing source column yields an
+  all-NaN **float** panel rather than an object one that silently breaks every
+  downstream comparison and rolling window, a substituted market cap is
+  disclosed in `metadata["market_cap_source"]` (and admitted as `unavailable`
+  when even the dollar-volume proxy is empty), the universe is reindexed onto the
+  panel *and* masked by having a price, and a price table without `adj_close`
+  fails loudly instead of producing a zero-breadth panel.
 * `factors` — the cross-sectional preprocessing chain is locked offline (100% on
   `preprocessing.py`): per-date winsorization / z-scoring / ranking, and
   Frisch-Waugh-Lovell industry + size neutralisation asserted by **orthogonality**
