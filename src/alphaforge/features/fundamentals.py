@@ -85,7 +85,11 @@ class FundamentalView:
         if {"operating_cashflow", "net_income"} <= set(df.columns):
             df["ocf_minus_ni"] = df["operating_cashflow"] - df["net_income"]
             df["ni_minus_ocf"] = df["net_income"] - df["operating_cashflow"]
-        if {"total_debt", "total_equity"} <= set(df.columns):
+        # Enterprise value needs debt and a market cap - *not* book equity. Gating
+        # on ``total_equity`` as well made ``ebit_to_ev`` (which declares
+        # ``fundamental:ebit,total_debt,market_cap``) silently return an all-NaN
+        # panel for any provider that reports debt without equity.
+        if "total_debt" in df.columns:
             df["ev"] = market_cap_estimate(df, market_cap) + df["total_debt"].fillna(0.0)
 
         return cls(
@@ -169,12 +173,27 @@ class FundamentalView:
         """Per-date fraction of the universe with any public fundamental."""
         any_field = self.pit_panel("total_assets") if "total_assets" in self.data.columns else None
         if any_field is None:
-            return pd.DataFrame(index=self.dates, columns=["coverage"])
+            # Same shape and dtype as the populated branch - an object-dtype
+            # column of NaNs here quietly poisons any downstream arithmetic.
+            return pd.DataFrame(np.nan, index=self.dates, columns=["coverage"], dtype=float)
         return any_field.notna().mean(axis=1).to_frame("coverage")
 
 
 def market_cap_estimate(df: pd.DataFrame, market_cap: pd.DataFrame) -> pd.Series:
-    """Align a market-cap estimate onto a fundamentals frame's report dates."""
+    """Align a market-cap estimate onto a fundamentals frame's report dates.
+
+    ``merge_asof`` needs both sides sorted on the key, so the fundamentals rows
+    are re-sorted by ``report_date`` - and put back afterwards, because the
+    caller assigns the result straight onto ``df``, which is ordered by
+    ``(symbol, report_date)``. Skipping the restore gives every statement the
+    market cap of whichever symbol happened to report on a nearby date.
+    """
+    # A column-less (or row-less) market-cap frame makes ``stack`` return an
+    # empty int-typed frame that ``merge_asof`` then rejects on dtype. An empty
+    # universe is a legitimate input, so report "no estimate" instead.
+    if market_cap is None or market_cap.empty or len(market_cap.columns) == 0 or df.empty:
+        return pd.Series(np.nan, index=df.index, dtype=float, name="mcap")
+
     mcap_long = (
         market_cap.stack()
         .rename("mcap")
@@ -182,9 +201,16 @@ def market_cap_estimate(df: pd.DataFrame, market_cap: pd.DataFrame) -> pd.Series
         .rename(columns={"level_0": "date", "level_1": "symbol"})
     )
     mcap_long["date"] = pd.to_datetime(mcap_long["date"])
-    mcap_long = mcap_long.sort_values("date")
+    # ``stack`` keeps the NaNs and ``merge_asof`` takes the nearest preceding row
+    # whether or not it carries a value, so a missing cap would shadow an older,
+    # perfectly good one.
+    mcap_long = mcap_long.dropna(subset=["mcap"]).sort_values("date")
+    if mcap_long.empty:
+        return pd.Series(np.nan, index=df.index, dtype=float, name="mcap")
+
     target = df[["report_date", "symbol"]].copy()
-    target = target.sort_values("report_date")
+    target["_row"] = np.arange(len(target))
+    target = target.sort_values("report_date", kind="stable")
     merged = pd.merge_asof(
         target,
         mcap_long.rename(columns={"date": "report_date"}),
@@ -193,7 +219,8 @@ def market_cap_estimate(df: pd.DataFrame, market_cap: pd.DataFrame) -> pd.Series
         direction="backward",
         tolerance=pd.Timedelta(days=10),
     )
-    return merged["mcap"].fillna(np.nan).reset_index(drop=True)
+    merged = merged.sort_values("_row", kind="stable")
+    return pd.Series(merged["mcap"].astype(float).to_numpy(), index=df.index, name="mcap")
 
 
 __all__ = ["FundamentalView", "DERIVED_FIELDS"]

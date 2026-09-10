@@ -265,8 +265,22 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   downstream comparison and rolling window, a substituted market cap is
   disclosed in `metadata["market_cap_source"]` (and admitted as `unavailable`
   when even the dollar-volume proxy is empty), the universe is reindexed onto the
-  panel *and* masked by having a price, and a price table without `adj_close`
-  fails loudly instead of producing a zero-breadth panel.
+  panel *and* masked by having a price, and   a price table without `adj_close`
+  fails loudly instead of producing a zero-breadth panel. The point-in-time
+  fundamentals layer is locked too (100% on `fundamentals.py`): a statement is
+  invisible before its `report_date` and visible from it on, and `fiscal_period`
+  is never a join key, so a February filing cannot leak into January; the
+  staleness guard retires a release once it is older than `max_staleness_days`
+  while `staleness()` keeps reporting its true age as a diagnostic; a ratio
+  divides a point-in-time numerator by a point-in-time denominator (or by the
+  market cap *of the signal date*), and a zero or overflowing denominator becomes
+  NaN instead of poisoning the cross-section. The market-cap alignment returns
+  values in the **caller's row order** - `merge_asof` needs a report-date sort
+  that the caller needs undone, and skipping the restore gave every statement the
+  market cap of whichever symbol happened to report nearby. Enterprise value is
+  derived from debt alone: gating it on `total_equity` as well made `ebit_to_ev`
+  (which declares `fundamental:ebit,total_debt,market_cap`) silently all-NaN for
+  any provider reporting debt without equity.
 * `factors` — the cross-sectional preprocessing chain is locked offline (100% on
   `preprocessing.py`): per-date winsorization / z-scoring / ranking, and
   Frisch-Waugh-Lovell industry + size neutralisation asserted by **orthogonality**
