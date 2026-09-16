@@ -11,7 +11,7 @@ Run locally::
 
 or, from the project root with the editable install::
 
-    alphaforge serve-api
+    alphaforge --serve-api
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ configure_logging(level="INFO")
 app = FastAPI(
     title="AlphaForge Research API",
     version="0.1.0",
-    description="Institutional quant research & portfolio engineering, served over HTTP.",
+    description="Factor research, portfolio construction, and backtesting over HTTP.",
 )
 
 # In-process cache of the most recent run.  A production deployment would put

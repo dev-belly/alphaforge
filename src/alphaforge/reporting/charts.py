@@ -44,7 +44,15 @@ def equity_curve(
     equity: pd.Series,
     benchmark: pd.Series | None = None,
     gross: pd.Series | None = None,
+    *,
+    initial_capital: float | None = None,
 ) -> str:
+    """Plot NAVs, compounding benchmark daily returns from the same initial cash.
+
+    ``initial_capital`` is the pre-first-session NAV, so the benchmark's first
+    observed return is included. Missing benchmark sessions remain gaps rather
+    than being displayed as observed zero returns.
+    """
     fig, ax = plt.subplots(figsize=(8, 3.2))
     if gross is not None and not gross.dropna().empty:
         g = gross.reindex(equity.index)
@@ -59,7 +67,10 @@ def equity_curve(
         )
     ax.plot(equity.index, equity.to_numpy(), color=BLUE, lw=1.4, label="Net (after-cost)")
     if benchmark is not None and not benchmark.dropna().empty:
-        b = benchmark.reindex(equity.index).dropna()
+        if initial_capital is None:
+            plt.close(fig)
+            raise ValueError("initial_capital is required when plotting benchmark returns")
+        b = (1.0 + benchmark.reindex(equity.index)).cumprod() * initial_capital
         ax.plot(b.index, b.to_numpy(), color=GREY, lw=1.0, label="Benchmark", alpha=0.8)
     ax.set_title("Equity Curve (Net vs Gross)")
     ax.legend(frameon=False, fontsize=8)

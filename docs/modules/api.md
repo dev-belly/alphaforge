@@ -6,7 +6,7 @@ returns. Long-running runs are cached in-process, so stage results can be polled
 separately.
 
 ```bash
-alphaforge serve-api            # uvicorn on :8000
+alphaforge --serve-api          # uvicorn on :8000
 ```
 
 ## Endpoints

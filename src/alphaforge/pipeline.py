@@ -64,6 +64,7 @@ class ResearchState:
     report_path: Path | None = None
     briefing: Any = None
     diagnostics: dict = field(default_factory=dict)
+    quality: Any = None
 
     def as_tool_state(self) -> dict:
         return {
@@ -77,6 +78,7 @@ class ResearchState:
             "regime": self.regime,
             "stress": self.stress,
             "config": self.config,
+            "quality": self.quality,
         }
 
 
@@ -121,7 +123,7 @@ class ResearchPipeline:
             )
         d["etl_symbols"] = int(res.bundle.prices["symbol"].nunique())
         d["data_provider"] = res.bundle.metadata.get("provider")
-        d["etl_symbols"] = int(res.bundle.prices["symbol"].nunique())
+        state.quality = res.quality
 
         # -- 2. panel ---------------------------------------------------
         benchmark = res.bundle.benchmark

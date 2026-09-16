@@ -39,6 +39,19 @@ def test_health(client):
     assert r.json()["status"] == "ok"
 
 
+def test_quality_query_exposes_cached_etl_report(client, monkeypatch):
+    from alphaforge_api.main import _STATE
+
+    from alphaforge.data.quality import DataQualityReport
+    from alphaforge.pipeline import ResearchState
+
+    quality = DataQualityReport(n_rows=100, n_symbols=5, coverage=0.98, provenance="sample")
+    monkeypatch.setitem(_STATE, "state", ResearchState(quality=quality))
+    response = client.post("/agent/query", json={"tool": "quality"})
+    assert response.status_code == 200, response.text
+    assert response.json()["data"] == quality.to_dict()
+
+
 @pytest.mark.slow
 def test_run_then_serve(client):
     r = client.post(
@@ -76,7 +89,9 @@ def test_run_then_serve(client):
     # the bug where the `risk` tool 404'd because the pipeline stores `weights`
     # as a (assets x dates) DataFrame while the tool assumed a pd.Series.
     assert client.get("/risk").status_code == 200
-    for tool in ("model", "risk", "factors", "stress", "regime", "attribution"):
+    for tool in ("model", "risk", "factors", "stress", "regime", "attribution", "quality"):
         r_q = client.post("/agent/query", json={"tool": tool})
         assert r_q.status_code == 200, r_q.text
         assert r_q.json()["ok"] is True
+        if tool == "quality":
+            assert r_q.json()["data"]["n_rows"] > 0

@@ -29,9 +29,6 @@ PCT_KEYS = {
     "cagr",
     "ann_vol",
     "ann_downside_dev",
-    "sharpe",
-    "sortino",
-    "calmar",
     "max_drawdown",
     "var_95",
     "cvar_95",
@@ -44,7 +41,6 @@ PCT_KEYS = {
     "active_return",
     "alpha_ann",
     "tracking_error",
-    "information_ratio",
     "up_capture",
     "down_capture",
     "treynor",
@@ -181,6 +177,14 @@ def _img(b64: str) -> str:
 
 def build_html(inputs: ReportInputs) -> str:
     """Render the full report to an HTML string."""
+    provider = str(inputs.config.get("data", {}).get("provider", "unknown") or "sample")
+    provider = provider.strip().lower() or "sample"
+    data_notice = f"Data provider: {html.escape(provider)}."
+    if provider in {"sample", "synthetic"}:
+        data_notice += (
+            " Synthetic data for demonstrating the research pipeline; "
+            "these results do not establish a tradeable edge."
+        )
     bt = inputs.backtest
     equity_b64 = drawdown_b64 = monthly_b64 = rc_b64 = brinson_b64 = quantile_b64 = ""
     if bt is not None:
@@ -189,6 +193,7 @@ def build_html(inputs: ReportInputs) -> str:
                 bt.equity,
                 getattr(bt, "benchmark", None),
                 getattr(bt, "gross_equity", None),
+                initial_capital=getattr(bt, "config", {}).get("initial_capital"),
             )
         )
         drawdown_b64 = _img(charts.drawdown(bt.equity))
@@ -219,6 +224,7 @@ body {{ font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif; marg
 h1 {{ font-size: 22px; margin: 0 0 4px; }}
 h2 {{ font-size: 15px; margin: 26px 0 8px; border-bottom: 2px solid #1f4e79; padding-bottom: 4px; }}
 .sub {{ color: #777; font-size: 12px; margin-bottom: 4px; }}
+.data-notice {{ background: #f3f6fb; border-left: 3px solid #1f4e79; padding: 10px 12px; font-size: 13px; }}
 img {{ width: 100%; border: 1px solid #eee; border-radius: 4px; margin: 6px 0; }}
 table.data {{ border-collapse: collapse; width: 100%; font-size: 12px; margin: 6px 0; }}
 table.data th, table.data td {{ border: 1px solid #e3e3e3; padding: 4px 7px; text-align: right; }}
@@ -234,6 +240,7 @@ ul.notes {{ font-size: 12.5px; color: #444; }}
 <body><div class="wrap">
 <h1>{html.escape(inputs.title)}</h1>
 <div class="sub">Generated {now}</div>
+<p class="data-notice">{data_notice}</p>
 
 <h2>Performance</h2>
 {equity_b64}

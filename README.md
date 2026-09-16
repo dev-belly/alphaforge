@@ -1,6 +1,6 @@
 # AlphaForge
 
-**Institutional quant research & portfolio engineering platform**
+**Python toolkit for factor research, portfolio construction, and backtesting**
 
 [![CI](https://github.com/dev-belly/alphaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/dev-belly/alphaforge/actions/workflows/ci.yml)
 
@@ -20,9 +20,10 @@ flowchart LR
     I --> J[Research Copilot]
 ```
 
-Every number in the report is produced by the same engine the CLI, the API and
-the dashboard call, so they can never disagree. Nothing is hallucinated: the
-research copilot reads real tool outputs and applies fixed rules.
+The CLI, API and dashboard share a research pipeline, and the report reads its
+outputs. The default research copilot summarizes tool outputs with fixed rules.
+Matching data, configuration, seed and dependency versions are needed to compare
+results across runs.
 
 ## Features
 
@@ -43,9 +44,9 @@ research copilot reads real tool outputs and applies fixed rules.
 
 ## Architecture
 
-AlphaForge is a pipeline of pure-ish modules. `alphaforge.pipeline.run_research`
-is the single entry point used by the CLI, the FastAPI service and the Streamlit
-dashboard, so none of them can disagree with the report:
+AlphaForge is a pipeline of pure-ish modules. The CLI, FastAPI service and
+Streamlit dashboard use `alphaforge.pipeline.ResearchPipeline.run` to run the
+same research stages:
 
 ```
 data → panel → factors → ML (walk-forward) → risk model → portfolio → backtest → attribution → report → copilot
@@ -95,7 +96,7 @@ print(state.report_path)  # research/reports/research_report.html
 Serve the research API:
 
 ```bash
-alphaforge serve-api            # uvicorn on :8000
+alphaforge --serve-api          # uvicorn on :8000
 # curl -X POST localhost:8000/research/run -H 'content-type: application/json' \
 #      -d '{"start":"2019-01-01","end":"2024-12-31"}'
 ```
@@ -110,14 +111,15 @@ streamlit run apps/dashboard/streamlit_app.py
 
 Every figure below is rendered from the shipped **synthetic `sample`** dataset by
 `python scripts/make_assets.py` (seed 42) — they demonstrate the *pipeline*, not a
-tradeable edge. The exact same numbers appear in the HTML report and the dashboard.
+tradeable edge. Reports from other dates, configurations or dependency versions
+can differ from these checked-in figures.
 
 **Net equity curve & drawdown** (backtest window 2019–2024, monthly rebalance):
 
 ![Net equity curve and drawdown](assets/equity_curve.png)
 
-**Top factors by Rank-IC** (of 42 evaluated; positive Rank-IC = economically
-meaningful signal):
+**Top factors by Rank-IC** (of 42 evaluated; positive Rank-IC indicates a
+positive rank association with forward returns on the synthetic sample):
 
 ![Top factors by Rank-IC](assets/factor_ic.png)
 
@@ -182,9 +184,10 @@ solve holds the current book rather than returning an invalid one. See
 
 `execution/costs.py` models commission + slippage (linear in notional) + square-root
 market impact; `execution/broker.py` deducts them per trade and rebalances to
-target weights. Costs reduce the compounding base exactly as in production, so
-net Sharpe/CAGR are never inflated. Timing risk of a large unfilled order is the
-one modelling gap (stated in Limitations).
+target weights. The simulator deducts modeled costs from portfolio cash and
+reports their effect on net returns. Execution and market-impact assumptions
+remain approximations; timing risk from unfilled orders is discussed in
+Limitations.
 
 ## Backtesting mechanics
 
@@ -227,7 +230,8 @@ the call fails. See [`docs/modules/ai_agent.md`](docs/modules/ai_agent.md).
 ## Reproducibility
 
 `alphaforge.utils.config.set_global_seed` seeds every RNG. The same config + seed
-produces the same report. The copilot's findings are rule-driven, so a reviewer can
+is intended to reproduce numeric results with matching data and dependencies;
+the report includes a generation timestamp. The copilot's findings are rule-driven, so a reviewer can
 trace every sentence to a metric.
 
 ## Testing & CI
@@ -383,8 +387,9 @@ Running the full pipeline on the synthetic `sample` provider
   (e.g. `market_drawdown_10pct`, `momentum_crash_2sigma`) showing the portfolio's
   factor-driven loss under named adverse paths.
 
-These figures are *reproducible* (same config + seed → same report) and are meant
-to validate the plumbing. Replace `sample` with a real provider before reading
+These figures are intended to be reproducible with the same data, config, seed
+and dependencies, and are meant to validate the plumbing. Replace `sample` with
+a real provider before reading
 them as market insight. Full walk-through: [`research/case_study.md`](research/case_study.md).
 
 ## Documentation

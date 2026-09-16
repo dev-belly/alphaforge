@@ -29,7 +29,7 @@ print("report:", state.report_path)
 ## API
 
 ```bash
-alphaforge serve-api --api-port 8000
+alphaforge --serve-api --api-port 8000
 ```
 
 ```bash
