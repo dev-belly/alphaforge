@@ -3,8 +3,7 @@
 The backtest engine is deliberately a **pure accounting loop**: it owns no alpha
 logic. All portfolio decisions are delegated to a `weight_fn` (by default a
 `PortfolioConstructor`). Its job is to turn target weights into a return series
-*honestly* — guarding look-ahead, charging real costs, and handling delistings
-without inventing survivorship.
+using configured execution lags, modeled costs and an explicit stale-price policy.
 
 ```python
 from alphaforge.backtest import BacktestEngine, BacktestConfig, run_backtest
@@ -23,7 +22,7 @@ gross = bt.gross_equity         # pre-cost curve (cost-drag overlay)
    signal can never be traded on the same close that produced it.
 3. **The day's return is earned on the pre-trade book**, and trading costs are
    deducted from NAV at the end of the session — so costs reduce the compounding
-   base exactly as they do in production, and net Sharpe/CAGR are never inflated.
+   base in the simulation. Fill prices and market impact remain model assumptions.
 4. **Untradeable names are not silently dropped.** A name with no price on the
    execution date keeps its position (marked at the last valid close); a name
    that has been dark for `delist_grace_days` sessions is force-liquidated at the
@@ -50,7 +49,7 @@ square-root market impact) inside `BrokerSimulator`, and deducted per trade. The
 engine then reconstructs the **pre-cost (gross)** return series by adding the
 per-day cost drag back into the net series — *exact, no re-run*. Gross and net
 Sharpe / CAGR / volatility / Sortino / Calmar / MaxDD are reported side by side,
-and `cost_drag_cagr = gross_cagr - net_cagr` states the real transaction-cost
+and `cost_drag_cagr = gross_cagr - net_cagr` states the simulated transaction-cost
 burden in one number. The `gross_equity` curve is shipped for the cost-drag
 overlay in the report.
 
@@ -83,5 +82,5 @@ implementations differ:
 `trades`, `turnover`, `costs`, `metrics`, `gross_equity`, `benchmark`, plus a
 `diagnostics` dict (`n_rebalances`, `n_skipped_rebalances`, `total_costs`,
 `cost_drag_ann`, `avg_turnover`, `avg_holdings`, `avg_gross_exposure`). The
-reporting layer and the API consume exactly this object — no recomputation, no
-disagreement.
+reporting layer and API consume this object. Compare outputs from the same run
+when checking their agreement.

@@ -2,8 +2,8 @@
 
 AlphaForge is a linear pipeline of self-contained layers. Each layer consumes the
 *real* outputs of the layer before it and the whole thing is orchestrated by
-`alphaforge.pipeline.ResearchPipeline`. A failure in any single layer is caught
-and reported, so a partial run still produces a report from the rest.
+`alphaforge.pipeline.ResearchPipeline`. Optional reporting and diagnostic stages catch failures and record warnings.
+A failure in a required data or model stage can still stop the pipeline.
 
 ## Pipeline
 
@@ -25,8 +25,9 @@ flowchart LR
     E -.regime / stress.-> J
 ```
 
-Every layer is a pure function of the layer before it; the CLI, the API and the
-dashboard all call the same `ResearchState`, so they can never disagree.
+The CLI, API and dashboard call the same pipeline and consume `ResearchState`.
+Matching configuration, data, dependency versions and run dates are still required
+when comparing outputs from different entry points.
 
 ## Layers
 
@@ -46,8 +47,8 @@ traded after it exists.
 ### 3. Factors (`alphaforge.factors`)
 A registry of factor functions produces (dates × symbols) panels. A
 `FactorPreprocessor` winsorizes, standardizes and industry/size-neutralizes;
-`evaluate_factor` reports Rank-IC / ICIR. Neutralisation is done so two factors
-never double-count the same axis.
+`evaluate_factor` reports Rank-IC / ICIR. Neutralisation reduces linear industry and size exposure; it does not guarantee
+that factors are independent or free of redundant information.
 
 ### 4. Models (`alphaforge.models`)
 `AlphaModelPipeline` runs walk-forward CV (expanding window, purge + embargo) and
@@ -57,8 +58,8 @@ converted to expected returns via Grinold's fundamental law
 
 ### 5. Risk (`alphaforge.risk`)
 `FundamentalRiskModel.fit` estimates `Σ = B F Bᵀ + D` on a rolling window. The
-Euler decomposition `σ_p = Σ w_i · MCR_i` is asserted in the test suite, so the
-risk-contribution chart always reconciles to portfolio volatility.
+Euler decomposition `σ_p = Σ w_i · MCR_i` has a reconciliation test for modeled
+portfolio volatility.
 
 ### 6. Portfolio (`alphaforge.portfolio`)
 `PortfolioConstructor` turns scores → expected returns → target weights. The
@@ -88,6 +89,7 @@ briefing; if an LLM is configured it only prose-ifies an already-grounded brief.
 
 ## Reproducibility contract
 
-`set_global_seed` seeds every RNG. The same config + seed → the same report. The
-copilot never invents a number: every sentence traces to a metric it actually
-received.
+`set_global_seed` seeds Python and NumPy randomness. Compare numerical outputs
+with matching data, configuration and dependency versions. Reports include a
+timestamp. The default copilot applies fixed rules to tool outputs; optional LLM
+prose requires separate review. See [the sample manifest](sample-run.md).

@@ -86,5 +86,5 @@ and `ic_used`. Euler risk contributions are available for the risk report.
 
 `optimize(mu, cov, config, **kwargs)` is the functional wrapper used by the
 pipeline, CLI and the `/optimize` API endpoint. All paths converge on the same
-`PortfolioOptimizer.solve`, so the dashboard, the report and the live API can
-never disagree about portfolio construction.
+`PortfolioOptimizer.solve`. Different configuration or data can still produce
+different portfolios through these entry points.

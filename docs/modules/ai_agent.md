@@ -58,10 +58,9 @@ Each rule is wrapped so a failing rule can never break the brief.
   executed `lag` sessions after the signal date (look-ahead guarded), survivorship
   flagged in the data report.
 
-## Why it is honest by construction
+## Default-mode reproducibility
 
-The copilot has no write access to any engine, no free-form LLM call in the
-default mode, and a deterministic fallback in every mode. The briefing it emits
-is a function of tool outputs plus fixed rules, so the same `ResearchState`
-always produces the same briefing — which is exactly what an interview committee
-or a compliance reviewer needs to see.
+The default mode has no free-form LLM call. Its findings are functions of tool
+outputs and fixed rules. An optional LLM can change the prose; its response is
+not guaranteed to preserve every number or interpretation and needs review.
+A failed LLM call falls back to the deterministic briefing.
