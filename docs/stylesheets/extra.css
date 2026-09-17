@@ -1,0 +1,7 @@
+:root { --md-primary-fg-color: #173e57; --md-accent-fg-color: #087e8b; }
+.md-typeset h1 { color: #173e57; font-weight: 750; letter-spacing: -.03em; }
+.md-typeset .hero { padding: 1.6rem; border-left: .3rem solid #087e8b; background: #eff6f8; border-radius: .3rem; margin-bottom: 1.6rem; }
+.md-typeset .hero h2 { margin-top: 0; font-weight: 750; }
+.md-typeset .hero p:last-child { margin-bottom: 0; }
+.md-typeset .md-button { border-radius: .3rem; margin: .25rem .4rem .25rem 0; }
+.md-typeset table:not([class]) { font-size: .75rem; }

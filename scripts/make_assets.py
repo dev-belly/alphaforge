@@ -29,9 +29,8 @@ GREY = "#999999"
 RED = "#b22222"
 
 
-def _main() -> None:
-    set_global_seed(42)
-    state = ResearchPipeline(Config.load()).run(start="2015-01-01", end="2024-12-31")
+def render_assets(state) -> None:
+    """Render the README figures from the same state used by the sample report."""
     bt = state.backtest
 
     # ---- equity curve + drawdown -----------------------------------------
@@ -44,10 +43,9 @@ def _main() -> None:
         ge = bt.gross_equity.dropna()
         ax1.plot(ge.index, ge.values, color=TEAL, lw=1.0, ls="--", label="Strategy (gross)")
     if bt.benchmark is not None:
-        bm = (1 + bt.benchmark.reindex(eq.index).dropna()).cumprod()
-        bm = bm / bm.iloc[0] * float(eq.iloc[0])
-        ax1.plot(bm.index, bm.values, color=GREY, lw=1.0, ls=":", label="Benchmark (SP500)")
-    ax1.set_title("AlphaForge - net equity curve (synthetic sample, 2019-2024)")
+        bm = (1 + bt.benchmark.reindex(eq.index)).cumprod() * bt.config["initial_capital"]
+        ax1.plot(bm.index, bm.values, color=GREY, lw=1.0, ls=":", label="Synthetic benchmark")
+    ax1.set_title(f"AlphaForge - synthetic sample ({eq.index[0].year}-{eq.index[-1].year})")
     ax1.legend(loc="upper left", fontsize=8)
     ax1.grid(alpha=0.3)
     dd = eq / eq.cummax() - 1.0
@@ -96,4 +94,5 @@ def _main() -> None:
 
 
 if __name__ == "__main__":
-    _main()
+    set_global_seed(42)
+    render_assets(ResearchPipeline(Config.load()).run(start="2015-01-01", end="2024-12-31"))

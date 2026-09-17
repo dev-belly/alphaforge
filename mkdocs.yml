@@ -1,5 +1,11 @@
 site_name: AlphaForge
-site_description: Institutional quant research & portfolio engineering platform
+site_description: Reproducible factor research, portfolio construction, and backtesting in Python
+site_url: https://dev-belly.github.io/alphaforge/
+repo_url: https://github.com/dev-belly/alphaforge
+repo_name: dev-belly/alphaforge
+edit_uri: edit/main/docs/
+exclude_docs: |
+  FINAL_ENGINEERING_REPORT.md
 theme:
   name: material
   palette:
@@ -7,9 +13,12 @@ theme:
       primary: indigo
   features:
     - navigation.sections
+    - navigation.top
     - content.code.copy
 nav:
   - Home: index.md
+  - Reproduce the sample: sample-run.md
+  - Validation & limitations: validation.md
   - Architecture: architecture.md
   - Quickstart: quickstart.md
   - Modules:
@@ -21,6 +30,8 @@ nav:
       - Backtesting: modules/backtesting.md
       - Research Copilot: modules/ai_agent.md
 markdown_extensions:
+  - attr_list
+  - md_in_html
   - admonition
   - tables
   - pymdownx.highlight
@@ -32,3 +43,5 @@ markdown_extensions:
 extra_javascript:
   - https://unpkg.com/mermaid@10/dist/mermaid.min.js
   - javascripts/mermaid.js
+extra_css:
+  - stylesheets/extra.css

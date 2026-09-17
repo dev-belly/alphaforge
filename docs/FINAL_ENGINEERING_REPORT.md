@@ -1,3 +1,5 @@
+> Historical engineering snapshot. Test counts and numerical results below describe an older revision. See `validation.md` and `sample-run.md` for the current checks and reproducible example.
+
 # AlphaForge — Final Engineering Report
 
 > Institutional Quant Research & Portfolio Engineering Platform

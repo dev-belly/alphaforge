@@ -25,6 +25,8 @@ outputs. The default research copilot summarizes tool outputs with fixed rules.
 Matching data, configuration, seed and dependency versions are needed to compare
 results across runs.
 
+[Documentation](https://dev-belly.github.io/alphaforge/) · [Sample report](https://dev-belly.github.io/alphaforge/sample/research_report.html) · [Reproduction record](https://dev-belly.github.io/alphaforge/sample-run/)
+
 ## Features
 
 | Layer | What it does |
@@ -110,7 +112,7 @@ streamlit run apps/dashboard/streamlit_app.py
 ## Sample output
 
 Every figure below is rendered from the shipped **synthetic `sample`** dataset by
-`python scripts/make_assets.py` (seed 42) — they demonstrate the *pipeline*, not a
+`python scripts/publish_sample.py` (seed 42) — they demonstrate the *pipeline*, not a
 tradeable edge. Reports from other dates, configurations or dependency versions
 can differ from these checked-in figures.
 

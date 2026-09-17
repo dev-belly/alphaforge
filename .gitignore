@@ -54,3 +54,5 @@ data/processed/*
 # pytest temp dirs
 .tmp/
 .pytest_tmp/
+# MkDocs build output
+site/
