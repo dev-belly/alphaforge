@@ -70,33 +70,42 @@ class OptimizerConfig:
 
     @classmethod
     def from_dict(cls, cfg: dict | None) -> OptimizerConfig:
+        """Build from a config section, falling back to the dataclass defaults.
+
+        A key that is **absent** falls back to the default; only a key that is
+        explicitly ``null`` disables its constraint. Conflating the two meant a
+        partial ``portfolio:`` section silently switched off volatility
+        targeting, the turnover limit, the holdings cap and the industry
+        deviation cap - the four constraints this module exists to enforce -
+        so ``from_dict({})`` no longer equals ``OptimizerConfig()``.
+        """
         cfg = cfg or {}
-        tv = cfg.get("target_volatility")
+        defaults = cls()
+
+        def optional(key: str, cast):
+            """Absent -> dataclass default; explicit null -> constraint disabled."""
+            if key not in cfg:
+                return getattr(defaults, key)
+            raw = cfg[key]
+            return None if raw in (None, "null") else cast(raw)
+
         return cls(
-            method=str(cfg.get("method", "mean_variance")),
-            long_only=bool(cfg.get("long_only", True)),
-            fully_invested=bool(cfg.get("fully_invested", True)),
-            max_weight=float(cfg.get("max_weight", 0.05)),
-            min_weight=float(cfg.get("min_weight", 0.0)),
-            target_volatility=None if tv in (None, "null") else float(tv),
-            turnover_limit=(
-                None
-                if cfg.get("turnover_limit") in (None, "null")
-                else float(cfg["turnover_limit"])
-            ),
-            max_holdings=(
-                None if cfg.get("max_holdings") in (None, "null") else int(cfg["max_holdings"])
-            ),
-            cash_buffer=float(cfg.get("cash_buffer", 0.0)),
-            max_industry_deviation=(
-                None
-                if cfg.get("max_industry_deviation") in (None, "null")
-                else float(cfg["max_industry_deviation"])
-            ),
-            risk_aversion=float(cfg.get("risk_aversion", 5.0)),
-            tc_penalty=float(cfg.get("tc_penalty", 0.5)),
-            industry_penalty=float(cfg.get("industry_penalty", 10.0)),
-            min_names=int(cfg.get("min_names", 5)),
+            method=str(cfg.get("method", defaults.method)),
+            long_only=bool(cfg.get("long_only", defaults.long_only)),
+            fully_invested=bool(cfg.get("fully_invested", defaults.fully_invested)),
+            max_weight=float(cfg.get("max_weight", defaults.max_weight)),
+            min_weight=float(cfg.get("min_weight", defaults.min_weight)),
+            target_volatility=optional("target_volatility", float),
+            turnover_limit=optional("turnover_limit", float),
+            max_holdings=optional("max_holdings", int),
+            cash_buffer=float(cfg.get("cash_buffer", defaults.cash_buffer)),
+            max_industry_deviation=optional("max_industry_deviation", float),
+            risk_aversion=float(cfg.get("risk_aversion", defaults.risk_aversion)),
+            tc_penalty=float(cfg.get("tc_penalty", defaults.tc_penalty)),
+            industry_penalty=float(cfg.get("industry_penalty", defaults.industry_penalty)),
+            cost_bps=float(cfg.get("cost_bps", defaults.cost_bps)),
+            dust_threshold=float(cfg.get("dust_threshold", defaults.dust_threshold)),
+            min_names=int(cfg.get("min_names", defaults.min_names)),
         )
 
 

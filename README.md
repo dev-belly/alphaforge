@@ -296,6 +296,22 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
   IC/volatility scaling, score de-meaning, outlier clipping, volatility-median
   fill, annualisation by `sqrt(periods)`, and the L1-normalised alpha blend.
+  The score -> target-weights bridge is locked too (100% on `constructor.py`):
+  the covariance at a rebalance date is estimated on returns **strictly before**
+  that date - corrupting every return on or after it leaves the matrix
+  bit-identical - eligibility is a history test (a 60-observation floor)
+  intersected with a tradability test, volatility is the annualised diagonal
+  with names the covariance dropped filled at the cross-sectional median rather
+  than NaN, and the volatility-target fallback de-levers a hot book into cash
+  while leaving a book that already fits the budget untouched. A **partial**
+  `portfolio:` section no longer switches those constraints off: an absent key
+  now falls back to the dataclass default and only an explicit `null` disables
+  one, so `OptimizerConfig.from_dict({}) == OptimizerConfig()`. Previously a
+  section that merely omitted `target_volatility` (or `turnover_limit`,
+  `max_holdings`, `max_industry_deviation`) silently ran with no volatility
+  budget, no turnover cap, unlimited holdings and no industry cap - the four
+  constraints the module exists to enforce. `cost_bps` and `dust_threshold` were
+  also unreachable from config; they are read now.
 * `models` — the walk-forward and purged-K-fold splitters are locked offline
   (100% on `split.py`): training always ends before the test block opens, no
   surviving training label is still forming when it opens (purge), and no test
