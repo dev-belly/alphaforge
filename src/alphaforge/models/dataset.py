@@ -109,9 +109,17 @@ def build_dataset(
     del data, long_index
 
     # Cross-sectional labels: percentile rank of the forward return within date.
+    # The two ranked modes differ only by the 0.5 centring, which is affine for a
+    # linear fit and monotone for a tree fit - so they rank names identically.
+    # Emitting the centred version for *both* made ``target`` a no-op parameter
+    # and handed ``forward_rank`` a ``[-0.5, 0.5]`` label the docstring promises
+    # is ``[0, 1]``.
     grp = df.groupby("date")["fwd_return"]
-    df["target"] = grp.transform(lambda s: s.rank(pct=True) - 0.5)
-    if target not in {"forward_rank", "forward_return"}:
+    if target == "forward_rank":
+        df["target"] = grp.transform(lambda s: s.rank(pct=True))
+    elif target == "forward_return":
+        df["target"] = grp.transform(lambda s: s.rank(pct=True) - 0.5)
+    else:
         df["target"] = df["fwd_return"]  # raw-return diagnostic mode
     df.loc[df["fwd_return"].isna(), "target"] = np.nan
 
@@ -124,7 +132,11 @@ def build_dataset(
     # applied *within* a date only; nothing is carried forward across dates.
     df[names] = df[names].astype(float).fillna(0.0)
 
-    valid_dates = df.assign(_v=df[names].notna().all(axis=1)).groupby("date")["_v"].sum()
+    # The features were filled above, so a ``notna().all(axis=1)`` mask here is
+    # True by construction - it was computed over the full feature matrix only to
+    # be summed back to a row count. All this filter can still do is drop a date
+    # that fell below ``min_names_per_date`` when the NaN labels were dropped.
+    valid_dates = df.groupby("date")["symbol"].size()
     keep_dates = valid_dates[valid_dates >= min_names_per_date].index
     df = df[df["date"].isin(keep_dates)].reset_index(drop=True)
 

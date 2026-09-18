@@ -332,6 +332,21 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   onto the existing `n_days`, so the frame held two columns of the same name and
   `folds["n_days"]` returned a DataFrame whose value was the *prediction-row*
   count (n_dates x n_symbols) rather than the number of IC observations.
+  The dataset builder is locked as well (100% on `dataset.py`), and there the
+  property under test is **alignment**: the long frame is built by `ravel()`-ing
+  each `(dates x symbols)` panel into a pre-sized
+  `MultiIndex.from_product([dates, symbols])`, so a disagreement between those
+  two orders would attach every feature to the wrong name with no error and no
+  shape mismatch. A factor panel encoded as `t * 100 + s` is therefore asserted
+  to come back as `t * 100 + s`, and the label is recomputed from the panel and
+  merged on `(date, symbol)` instead of being trusted. The two ranked target
+  modes are pinned to their documented ranges - `forward_rank` in `(0, 1]` and
+  `forward_return` in `(-0.5, 0.5]` - because both used to emit the centred
+  version, which handed `forward_rank` a `[-0.5, 0.5]` label the docstring says
+  is `[0, 1]` and made `target` a parameter with no effect. A vestigial
+  `notna().all(axis=1)` mask was also computed over the whole feature matrix
+  only to be summed back to a row count: the features are filled two lines
+  earlier, so it was True by construction.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
