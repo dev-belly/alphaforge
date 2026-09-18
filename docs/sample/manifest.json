@@ -1,9 +1,9 @@
 {
-  "generated_at_utc": "2026-09-17T05:35:19.704026+00:00",
+  "generated_at_utc": "2026-09-18T06:03:44.863239+00:00",
   "provider": "sample (synthetic)",
   "seed": 42,
   "command": "python scripts/publish_sample.py",
-  "source_revision": "678cf75b7ab1d67149ab039b055c6e44792d58bf",
+  "source_revision": "63f65a514bcd4717c3dd6c941fff513b3c993df6",
   "python": "3.12.13",
   "dependencies": {
     "Jinja2": "3.1.6",
@@ -117,8 +117,8 @@
     "scripts/diagnose_nav.py": "aa664eb374ee58be5d3b64716c9268a4a6af4b3443336c10dcb48887b8444a7d",
     "scripts/export_case_study.py": "705064c353a598fbd3e0aa168ac2d7fe09061b244362250fdadadf2524bd7bc0",
     "scripts/fetch_real_data.py": "90a8cc04116dc693a2254f3beb0381104c41a6f9dc39351fc159c292ab02ff19",
-    "scripts/make_assets.py": "ac9292be36afa6138849f75b62c3d992c27990cab36a4987a47b9d348a16455d",
-    "scripts/publish_sample.py": "5f47f1d5f5f1f769945f45a7fcf9c424ef24ab1fbffabc0f2f2adfc9edb5ec7b",
+    "scripts/make_assets.py": "2040f354cf731f40a32f7a05a659345ac2182757a81ae0ea2493a6f516f8af16",
+    "scripts/publish_sample.py": "bc4e63b9ef04e42295208965ae5a2cc921ac6d6ac93ee3a2e6fae39ab07a9f0a",
     "scripts/run_real_backtest.py": "c5222a618e15c8d25d39365f36100d2c4dc342d3a632e5e80f7d1026fda40f5b",
     "scripts/run_real_research.py": "6e37dddc73a5c1dbf2a5ab355b744f473d8cfc919f7d3a13320dabbd0f711095",
     "scripts/run_research.py": "7d0aa96a3cbf7aa93ce5ec5c1e1e51c9100ca3b990fa4c65a3a6eb260e090a06",
@@ -185,7 +185,7 @@
     "src/alphaforge/utils/math_utils.py": "58c60902bd48ffdcc3d399441ce6b4b96e67ed7fbf2765188a7069937fd18a88"
   },
   "artifact_sha256": {
-    "docs/sample/research_report.html": "d53b8f32f6cb5966fb348300738ff5c5a8f10752dbe414e9bead289f03147065",
+    "docs/sample/research_report.html": "5b48b97cfffeee89a04aa1e11c82b36dee0a5691ff6a45ec1c69e403483c7113",
     "docs/sample/daily_results.csv": "17a4434fcc55c442babafffdb26f01da7d7c4e5b3e5c811bca609b3c62b29b27",
     "docs/sample/config.json": "ab2e0ea0c799022cfab1832adbdfc82e1fe97f6f7724b32c583cdfa8edf6f2ce",
     "docs/sample/metrics.json": "7566ebc64ab4f7812db8d81c7d88752cbb4e02560f65462dd9f32529b85debb5",
