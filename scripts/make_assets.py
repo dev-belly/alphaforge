@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from alphaforge.pipeline import ResearchPipeline
-from alphaforge.utils.config import Config, set_global_seed
+from alphaforge.utils.config import Config, load_yaml, set_global_seed
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 ASSETS.mkdir(parents=True, exist_ok=True)
@@ -31,6 +31,8 @@ RED = "#b22222"
 
 def render_assets(state) -> None:
     """Render the README figures from the same state used by the sample report."""
+    if state.config.get("data", {}).get("provider") != "sample":
+        raise ValueError("README figures must use the synthetic sample provider")
     bt = state.backtest
 
     # ---- equity curve + drawdown -----------------------------------------
@@ -94,5 +96,8 @@ def render_assets(state) -> None:
 
 
 if __name__ == "__main__":
-    set_global_seed(42)
-    render_assets(ResearchPipeline(Config.load()).run(start="2015-01-01", end="2024-12-31"))
+    config = Config(raw=load_yaml(ASSETS.parent / "configs/default.yaml"))
+    if config.get("data.provider") != "sample":
+        raise ValueError("README figures must use the synthetic sample provider")
+    set_global_seed(int(config.get("project.seed")))
+    render_assets(ResearchPipeline(config).run())
