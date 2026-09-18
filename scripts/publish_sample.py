@@ -4,6 +4,7 @@ Run from the repository root: python scripts/publish_sample.py
 The published sample intentionally bypasses environment overrides and refuses
 any provider other than the bundled synthetic sample.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -40,20 +41,35 @@ def main() -> None:
     if bt is None or state.report_path is None or state.model_eval is None:
         raise RuntimeError("Required research stages did not complete")
     render_assets(state)
-    pd.DataFrame({"net_equity": bt.equity, "net_return": bt.returns,
-                  "benchmark_return": bt.benchmark, "cost": bt.costs}).to_csv(
-        OUT / "daily_results.csv", index_label="date")
+    pd.DataFrame(
+        {
+            "net_equity": bt.equity,
+            "net_return": bt.returns,
+            "benchmark_return": bt.benchmark,
+            "cost": bt.costs,
+        }
+    ).to_csv(OUT / "daily_results.csv", index_label="date")
     (OUT / "config.json").write_text(json.dumps(cfg.raw, indent=2) + "\n")
     metrics = {k: (v.item() if hasattr(v, "item") else v) for k, v in bt.metrics.items()}
-    (OUT / "metrics.json").write_text(json.dumps(metrics, indent=2, default=str, allow_nan=False) + "\n")
-    source_paths = sorted([*ROOT.glob("src/**/*.py"), *ROOT.glob("scripts/*.py"), ROOT / "configs/default.yaml"])
-    artifacts = [OUT / name for name in ("research_report.html", "daily_results.csv", "config.json", "metrics.json")]
+    (OUT / "metrics.json").write_text(
+        json.dumps(metrics, indent=2, default=str, allow_nan=False) + "\n"
+    )
+    source_paths = sorted(
+        [*ROOT.glob("src/**/*.py"), *ROOT.glob("scripts/*.py"), ROOT / "configs/default.yaml"]
+    )
+    artifacts = [
+        OUT / name
+        for name in ("research_report.html", "daily_results.csv", "config.json", "metrics.json")
+    ]
     artifacts += sorted((ROOT / "assets").glob("*.png"))
     manifest = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "provider": "sample (synthetic)", "seed": seed,
+        "provider": "sample (synthetic)",
+        "seed": seed,
         "command": "python scripts/publish_sample.py",
-        "source_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "source_revision": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
         "python": platform.python_version(),
         "dependencies": dict(sorted((d.metadata["Name"], d.version) for d in distributions())),
         "source_sha256": {str(p.relative_to(ROOT)): digest(p) for p in source_paths},
@@ -61,11 +77,18 @@ def main() -> None:
         "data_dates": [str(state.panel.dates[0].date()), str(state.panel.dates[-1].date())],
         "backtest_dates": [str(bt.returns.index[0].date()), str(bt.returns.index[-1].date())],
         "symbols": len(state.panel.symbols),
-        "limitations": ["Synthetic data; not market evidence", "One seed and configuration", "HTML timestamp changes between runs"],
+        "limitations": [
+            "Synthetic data; not market evidence",
+            "One seed and configuration",
+            "HTML timestamp changes between runs",
+        ],
     }
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    rows = "\n".join(f"| {k} | {v:.6g} |" if isinstance(v, (int, float)) else f"| {k} | {v} |" for k, v in metrics.items())
-    page = f'''# Reproduce the sample
+    rows = "\n".join(
+        f"| {k} | {v:.6g} |" if isinstance(v, (int, float)) else f"| {k} | {v} |"
+        for k, v in metrics.items()
+    )
+    page = f"""# Reproduce the sample
 
 This is a computed run on **synthetic data**, with seed {seed},
 {manifest["symbols"]} symbols and data from {manifest["data_dates"][0]} to {manifest["data_dates"][1]}.
@@ -99,7 +122,7 @@ versions to reproduce this environment. Exact source file hashes accompany the
 Output files go to `docs/sample/`; README figures go to `assets/`.
 For normal research runs with other providers or settings, use the [Quickstart](quickstart.md).
 Read the [validation limits](validation.md) before interpreting performance.
-'''
+"""
     (ROOT / "docs/sample-run.md").write_text(page)
     print(json.dumps({"report": str(state.report_path), "metrics": metrics}, default=str))
 
