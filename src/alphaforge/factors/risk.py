@@ -131,12 +131,16 @@ def max_drawdown_252d(ctx: FactorContext) -> pd.DataFrame:
         window = values[i - 252 : i]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            peak = np.nanmax(
-                np.fmax.accumulate(np.where(np.isnan(window), -np.inf, window)), axis=0
-            )
-            trough = np.nanmin(window, axis=0)
-        with np.errstate(invalid="ignore", divide="ignore"):
-            res[i] = trough / np.where(peak > 0, peak, np.nan) - 1.0
+            # A drawdown is a peak-to-trough move, so the trough only counts if
+            # it comes *after* the peak. Comparing the window's low against its
+            # high ignores the ordering entirely: on a steadily rising stock the
+            # low is the first day and the high the last, so min/max scored it as
+            # its worst possible drawdown (-42% on a monotone 100 -> 200 ramp).
+            # The running peak is what the ordering-aware version needs.
+            peak = np.fmax.accumulate(np.where(np.isnan(window), -np.inf, window), axis=0)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                drawdown = window / np.where(peak > 0, peak, np.nan) - 1.0
+            res[i] = np.nanmin(drawdown, axis=0)
     out[:] = res
     return out
 
