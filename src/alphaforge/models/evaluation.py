@@ -158,18 +158,22 @@ def evaluate_predictions(
     if fold_id is not None:
         tmp = pd.DataFrame({"fold": fold_id.to_numpy(), "date": predictions["date"].to_numpy()})
         tmp = tmp.merge(ic.rename("rank_ic").reset_index(), on="date", how="left")
+        # One IC per date, so ``n_days`` *is* the IC observation count. Counting
+        # ``rank_ic`` instead would count prediction rows - the left join fans the
+        # per-date IC out over every symbol, giving n_dates x n_symbols. That
+        # column used to be renamed onto ``n_days`` as well, so ``fold_metrics``
+        # carried two columns of the same name and ``folds["n_days"]`` returned a
+        # DataFrame rather than a Series.
         folds = (
             tmp.groupby("fold")
             .agg(
                 rank_ic_mean=("rank_ic", "mean"),
                 rank_ic_std=("rank_ic", "std"),
                 n_days=("date", "nunique"),
-                n_obs=("rank_ic", "count"),
             )
             .reset_index()
         )
         folds["icir"] = folds["rank_ic_mean"] / folds["rank_ic_std"].replace(0, np.nan)
-        folds = folds.rename(columns={"n_obs": "n_days"})
 
     ann_factor = periods_per_year / max(horizon, 1)
     summary = {

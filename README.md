@@ -319,7 +319,19 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   edge of the block. Purge and embargo are anchored on the train/test seam
   rather than on the last training date - anchoring on the latter silently
   emptied 4 of the 5 `PurgedKFold` splits, turning cross-validation into a
-  single split.
+  single split. The evaluation layer is locked too (100% on `evaluation.py`):
+  the vectorised `daily_rank_ic` is asserted against a brute-force per-date
+  Spearman correlation, quantile buckets are monotone for a signal that really
+  does order the realised return and a date too thin to fill every bucket is NaN
+  rather than a bucket quietly absorbing its neighbours, `prediction_turnover`
+  is checked against a hand-computed value, and `t_stat` applies the `n /
+  horizon` overlap correction rather than a naive `sqrt(n)`: on the test fixture
+  (500 periods, horizon 21) that is t=9.52 corrected against t=43.62 naive, a
+  4.6x overstatement of significance. `fold_metrics` now carries
+  exactly one `n_days` column: the per-fold observation count used to be renamed
+  onto the existing `n_days`, so the frame held two columns of the same name and
+  `folds["n_days"]` returned a DataFrame whose value was the *prediction-row*
+  count (n_dates x n_symbols) rather than the number of IC observations.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
