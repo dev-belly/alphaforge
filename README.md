@@ -291,7 +291,19 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   `preprocessing.py`): per-date winsorization / z-scoring / ranking, and
   Frisch-Waugh-Lovell industry + size neutralisation asserted by **orthogonality**
   rather than by "it ran". Unscored names must keep the neutral fill value, never
-  a residual invented from their size.
+  a residual invented from their size. The risk / volatility factors are locked
+  too (100% on `risk.py`), with every expectation computed independently - an
+  explicit numpy slice per rolling window, and return series built so the answer
+  is known by construction: returns that are exactly `beta * market` must yield
+  that beta and **zero** idiosyncratic volatility, and a series that only rises
+  after an initial dip must not be charged for the dip it recovered from. Every
+  measure is asserted trailing (tampering with prices on or after a date leaves
+  that date bit-identical). `max_drawdown_252d` used to compare the window's low
+  against its high, which ignores the ordering a drawdown is defined by: on a
+  monotone 100 -> 200 ramp the low is the first day and the high the last, so a
+  name that never fell was scored as a 42% drawdown - and with direction -1 that
+  ranked a steadily compounding stock as maximally risky. It now measures
+  against the running peak, which the loop had already computed and discarded.
 * `portfolio` — the expected-returns bridge (Grinold `mu = shrunk_IC * z * sigma`)
   is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
   IC/volatility scaling, score de-meaning, outlier clipping, volatility-median
@@ -364,8 +376,8 @@ through `fastapi.testclient.TestClient` (starts the pipeline, then serves
 
 * **Demo** — `python -m alphaforge.cli --start 2016-01-01 --end 2024-12-31`
   runs the whole stack end-to-end and writes `research/reports/research_report.html`
-  (42 factors, walk-forward Rank-IC ≈ +0.045, risk-model R² ≈ 0.50, backtest
-  CAGR +0.79% / Sharpe 0.13 / MaxDD −22.8%).
+  (42 factors, walk-forward Rank-IC ≈ +0.044, risk-model R² ≈ 0.50, backtest
+  CAGR +0.75% / Sharpe 0.12 / MaxDD −22.8%).
 * **API** — `uvicorn alphaforge_api.main:app` was launched and exercised with a
   real run: `POST /research/run` plus `GET` `/factors /backtest /risk /briefing
   /attribution /regime /stress /portfolio/* /report`, `POST` `/optimize
