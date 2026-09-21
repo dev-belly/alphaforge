@@ -304,6 +304,16 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   name that never fell was scored as a 42% drawdown - and with direction -1 that
   ranked a steadily compounding stock as maximally risky. It now measures
   against the running peak, which the loop had already computed and discarded.
+  The momentum / reversal family is locked too (100% on `momentum.py`), and there
+  the tests are built to **discriminate** rather than to agree, because both of
+  the classic specification's conventions are easy to invert. The skip: a price
+  crash confined to the last 20 days must leave `mom_12_1` untouched (its window
+  ends at `t - 21`) while moving `mom_20d` by half - a test that only passes if
+  the lookback really is `t - 271` to `t - 21` rather than `t - 250` to `t`. The
+  sign: reversal factors keep the raw trailing return and carry direction `-1`.
+  The strongest check is residual momentum - a stock whose returns *are* the
+  market's has beta 1 and zero alpha, so the factor must come out at zero
+  (measured 3e-16); anything else means the beta or the intercept is wrong.
 * `portfolio` — the expected-returns bridge (Grinold `mu = shrunk_IC * z * sigma`)
   is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
   IC/volatility scaling, score de-meaning, outlier clipping, volatility-median
