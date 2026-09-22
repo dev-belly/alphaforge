@@ -164,7 +164,14 @@ class LightGBMModel(BaseEstimator):
             "force_row_wise": True,
         }
         n_estimators = int(self.params.get("n_estimators", 250))
-        train_set = lgb.Dataset(X, label=y, feature_name=list(feature_names or []))
+        # ``feature_names`` is optional on every estimator's ``fit``, but an
+        # empty list is not the same as "unnamed" to LightGBM: it validates the
+        # length and raises "Length of feature_name(0) and num_feature(n) don't
+        # match" from inside ``lgb.train``. Its own default for "auto-generate
+        # names" is the string "auto".
+        train_set = lgb.Dataset(
+            X, label=y, feature_name=list(feature_names) if feature_names else "auto"
+        )
         self.model = lgb.train(
             params,
             train_set,

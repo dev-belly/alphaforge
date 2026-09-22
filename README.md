@@ -368,7 +368,22 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   is `[0, 1]` and made `target` a parameter with no effect. A vestigial
   `notna().all(axis=1)` mask was also computed over the whole feature matrix
   only to be summed back to a row count: the features are filled two lines
-  earlier, so it was True by construction.
+  earlier, so it was True by construction. The estimator factory is locked too
+  (100% on `estimators.py`), and the failure mode it owns is *silent
+  substitution* - the run reports the model you configured and trains something
+  else. So the central test is not "does it fit" but "does the configured
+  parameter actually reach the underlying estimator": a Ridge at `alpha=1e-6`
+  and one at `alpha=1e9` must produce coefficient norms of ~3.3 and ~0, and if
+  `params` were dropped anywhere between the config and `sklearn` both would
+  come back identical while every downstream number still looked plausible.
+  Seeding is checked the same way (same seed reproducible, different seed not),
+  feature importance must rank the features carrying the signal first and be
+  `None` before a fit rather than an empty frame that reads as "nothing
+  matters", and an unknown model type must raise with the available options
+  rather than fall back. `LightGBMModel.fit` also crashed whenever
+  `feature_names` was omitted - the argument is optional on every estimator, but
+  an empty list is not "unnamed" to LightGBM, which validates the length and
+  raises from inside `lgb.train`.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
