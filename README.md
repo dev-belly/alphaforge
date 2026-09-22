@@ -383,7 +383,21 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   rather than fall back. `LightGBMModel.fit` also crashed whenever
   `feature_names` was omitted - the argument is optional on every estimator, but
   an empty list is not "unnamed" to LightGBM, which validates the length and
-  raises from inside `lgb.train`.
+  raises from inside `lgb.train`. The walk-forward driver is locked as well
+  (100% on `models/pipeline.py`), and the dangerous part there is a translation:
+  the splitter returns per-**date** masks while the dataset is a per-**row** long
+  frame, so the driver maps one onto the other through `date_pos` / `row_pos`.
+  Off by one position and every fold trains on data overlapping its own test
+  block - excellent backtest, no error, undetectable downstream. So the tests
+  re-derive the folds independently and assert that for every fold the latest
+  training date is strictly earlier than the earliest test date, that predicted
+  dates never fall outside their fold's test window, and that the blocks do not
+  overlap between folds. Per-fold feature importance is checked for the right
+  aggregation axis and column order (``std`` must not be computed over a frame
+  that already contains ``mean``), and `signal_panel` now normalises both axes
+  through `pd.Index(...).unique()`: `reindex(columns=<Series>)` matches on the
+  Series' *values*, so passing the per-row `dataset.symbols` turned a 20-column
+  score panel into a 23,580-column one, silently.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)

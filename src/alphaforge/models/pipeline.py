@@ -187,11 +187,18 @@ def run_model_comparison(
 def signal_panel(
     predictions: pd.DataFrame, dates: pd.DatetimeIndex, symbols: pd.Index
 ) -> pd.DataFrame:
-    """Pivot out-of-sample predictions back into a (dates x symbols) score panel."""
+    """Pivot out-of-sample predictions back into a (dates x symbols) score panel.
+
+    Both axes are normalised through :class:`pd.Index` and de-duplicated. The
+    obvious thing to hand this function is ``dataset.symbols``, which is a
+    per-*row* Series; reindexing columns on its 23,580 repeated labels silently
+    returns a 23,580-column frame rather than a 20-column one, with the score
+    panel's values scattered across duplicate columns.
+    """
     out = predictions.pivot_table(
         index="date", columns="symbol", values="prediction", aggfunc="last"
     )
-    return out.reindex(index=dates, columns=symbols)
+    return out.reindex(index=pd.Index(dates).unique(), columns=pd.Index(symbols).unique())
 
 
 __all__ = ["AlphaModelPipeline", "WalkForwardResult", "run_model_comparison", "signal_panel"]
