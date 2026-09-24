@@ -428,6 +428,17 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   through `pd.Index(...).unique()`: `reindex(columns=<Series>)` matches on the
   Series' *values*, so passing the per-row `dataset.symbols` turned a 20-column
   score panel into a 23,580-column one, silently.
+* `reporting` — the report figures are locked offline (100% on `charts.py`). A
+  chart is a claim, and the failures that matter are the plausible ones: an
+  equity curve compounded from the wrong base, a drawdown drawn off the running
+  peak of the wrong series, an IC line plotted as a level instead of a cumulative
+  sum. None of those raise, so the tests do not stop at "it returned a base64
+  string" - they intercept `Axes.plot` / `Axes.fill_between` and assert the
+  **numbers handed to matplotlib** against an independently computed series.
+  Pinned along the way: `initial_capital` is the *pre*-first-session NAV so the
+  benchmark's first return is already in the line, a gap in the benchmark stays
+  a gap without truncating the curve (`Series.cumprod` skips NaN), a failing
+  chart still closes its figure, and every renderer returns a real PNG.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
