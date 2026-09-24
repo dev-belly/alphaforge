@@ -314,6 +314,21 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   The strongest check is residual momentum - a stock whose returns *are* the
   market's has beta 1 and zero alpha, so the factor must come out at zero
   (measured 3e-16); anything else means the beta or the intercept is wrong.
+  The value and quality families are locked too (100% on `value.py` and
+  `quality.py`), where the two conventions worth inverting are the direction and
+  the reciprocal. `pe_ratio` must be exactly `1 / earnings_yield` including at
+  the boundary (a zero yield becomes NaN, not `inf`), the yields carry direction
+  `+1` and the price ratios `-1`, `accruals` must stay the exact mirror image of
+  `earnings_quality`, and `low_leverage` returns raw debt/assets - *not* its
+  negation - so its direction carries the sign. Its description used to claim
+  "higher = safer" while the value was unnegated leverage, which would have led
+  a reader to flip the direction and get the sign backwards.
+  Both composites also used to raise a plain `RuntimeError` when no inputs were
+  available, which escaped `FactorRegistry.compute`'s `FactorUnavailableError`
+  handler: instead of being reported as unavailable like every other factor,
+  they aborted the call. That is now the documented error type, and the broad
+  `except Exception` around each component was narrowed so a misspelt derived
+  field surfaces instead of silently dropping a term from the composite.
 * `portfolio` — the expected-returns bridge (Grinold `mu = shrunk_IC * z * sigma`)
   is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
   IC/volatility scaling, score de-meaning, outlier clipping, volatility-median

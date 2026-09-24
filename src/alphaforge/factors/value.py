@@ -14,7 +14,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from alphaforge.factors.base import FactorContext, FactorSpec, register
+from alphaforge.factors.base import (
+    FactorContext,
+    FactorSpec,
+    FactorUnavailableError,
+    register,
+)
 from alphaforge.utils.logging import get_logger
 
 log = get_logger("factors.value")
@@ -161,10 +166,13 @@ def value_composite(ctx: FactorContext) -> pd.DataFrame:
     for key in ("earnings_yield", "book_to_price", "sales_to_price", "fcf_yield"):
         try:
             parts.append(_ratio(ctx, key))
-        except Exception:  # noqa: BLE001
+        except FactorUnavailableError:
+            # Only "the provider has no fundamentals" is skippable. A KeyError
+            # from a misspelt derived-field name is a bug in the tuple above and
+            # must surface, not quietly drop a component from the composite.
             continue
     if not parts:
-        raise RuntimeError("No value inputs available")
+        raise FactorUnavailableError("No value inputs available")
     zs = [
         p.sub(p.mean(axis=1), axis=0).div(p.std(axis=1).replace(0, np.nan), axis=0) for p in parts
     ]

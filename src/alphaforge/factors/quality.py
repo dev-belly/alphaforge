@@ -10,7 +10,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from alphaforge.factors.base import FactorContext, FactorSpec, register
+from alphaforge.factors.base import (
+    FactorContext,
+    FactorSpec,
+    FactorUnavailableError,
+    register,
+)
 from alphaforge.utils.logging import get_logger
 
 log = get_logger("factors.quality")
@@ -123,7 +128,11 @@ def gross_margin(ctx: FactorContext) -> pd.DataFrame:
         name="low_leverage",
         category="quality",
         direction=-1,
-        description="Total debt / total assets, signed so that higher = safer balance sheet.",
+        description=(
+            "Total debt / total assets. The raw value is *leverage*, so a higher "
+            "number means a riskier balance sheet - hence direction -1. It is not "
+            "sign-flipped: the direction carries the sign."
+        ),
         requires_fundamentals=True,
         data_requirement="fundamental:total_debt,total_assets",
     )
@@ -147,10 +156,13 @@ def quality_composite(ctx: FactorContext) -> pd.DataFrame:
     for key in ("roe", "roa", "gross_profitability", "earnings_quality"):
         try:
             parts.append(_ratio(ctx, key))
-        except Exception:  # noqa: BLE001
+        except FactorUnavailableError:
+            # Only "the provider has no fundamentals" is skippable. A KeyError
+            # from a misspelt derived-field name is a bug in the tuple above and
+            # must surface, not quietly drop a component from the composite.
             continue
     if not parts:
-        raise RuntimeError("No quality inputs available")
+        raise FactorUnavailableError("No quality inputs available")
     zs = [
         p.sub(p.mean(axis=1), axis=0).div(p.std(axis=1).replace(0, np.nan), axis=0) for p in parts
     ]
