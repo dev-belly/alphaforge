@@ -39,7 +39,7 @@ compounding base exactly as in production, so net Sharpe/CAGR are never inflated
 So the cost drag is explicit, not hidden. The engine adds the per-day cost drag
 back into the net return series to reconstruct the pre-cost (gross) curve — exact,
 no re-run. Gross and net Sharpe/CAGR/vol are shown side by side; `cost_drag_cagr`
-states the gap in one number (0.19%/yr on the sample run).
+states the gap in one number (0.18%/yr on the sample run).
 
 **6. How do you validate factors?**
 Per-date Pearson and Rank-IC with distributional stats: `ic_mean`, `icir =
@@ -126,7 +126,7 @@ little change — it is already provider- and config-driven.
 
 **20. Why synthetic data, and what do the sample results show?**
 To demonstrate engineering without claiming a live edge. The sample run shows
-CAGR 0.79% net, Sharpe 0.13, MaxDD −22.8%, cost drag 0.19%/yr, risk R² 0.50,
+CAGR 0.49% net, Sharpe 0.10, MaxDD −23.3%, cost drag 0.18%/yr, risk R² 0.50,
 model Rank-IC 0.0447 — modest economic signal by design, but every pipeline stage
 (factor validation → walk-forward → costs → attribution) is exercised and
 reproducible.

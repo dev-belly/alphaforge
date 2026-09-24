@@ -50,7 +50,7 @@ Each rule is wrapped so a failing rule can never break the brief.
 
 `Briefing` carries four sections:
 
-* **headline** — e.g. `Strategy CAGR +0.8%, Sharpe 0.13 (model Rank-IC +0.0447).`
+* **headline** — e.g. `Strategy CAGR +0.49%, Sharpe 0.10 (model Rank-IC +0.0447).`
 * **findings** — what the numbers support (IC, Brinson allocation/selection,
   modal regime and its return split, worst stress scenario).
 * **warnings** — cost bleed, deep drawdown, stress losses beyond −10%.

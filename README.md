@@ -548,7 +548,7 @@ through `fastapi.testclient.TestClient` (starts the pipeline, then serves
 * **Demo** — `python -m alphaforge.cli --start 2016-01-01 --end 2024-12-31`
   runs the whole stack end-to-end and writes `research/reports/research_report.html`
   (42 factors, walk-forward Rank-IC ≈ +0.044, risk-model R² ≈ 0.50, backtest
-  CAGR +0.75% / Sharpe 0.12 / MaxDD −22.8%).
+  CAGR +0.49% / Sharpe 0.10 / MaxDD −23.3% under the fixed ex-ante IC).
 * **API** — `uvicorn alphaforge_api.main:app` was launched and exercised with a
   real run: `POST /research/run` plus `GET` `/factors /backtest /risk /briefing
   /attribution /regime /stress /portfolio/* /report`, `POST` `/optimize

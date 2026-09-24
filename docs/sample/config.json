@@ -47,6 +47,7 @@
   },
   "portfolio": {
     "method": "mean_variance",
+    "assumed_ic": 0.03,
     "long_only": true,
     "fully_invested": true,
     "max_weight": 0.05,

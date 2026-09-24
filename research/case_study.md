@@ -1,4 +1,4 @@
-# Case Study — Sample Backtest (2016–2024)
+# Case Study — Synthetic Sample Backtest (2019–2024)
 
 > **Honesty first.** Every number below is produced by the *real* AlphaForge
 > engine on the bundled **synthetic** `sample` provider (seed 42). The sample
@@ -34,8 +34,8 @@ is the intended difficulty of the synthetic panel:
 
 | Factor id | Rank-IC | ICIR | t-stat |
 |-----------|---------|------|--------|
-| 2 | 0.0488 | 0.256 | 2.74 |
-| 8 | 0.0555 | 0.247 | 2.53 |
+| 1 | 0.0490 | 0.256 | 2.77 |
+| 9 | 0.0555 | 0.247 | 2.53 |
 | 12 | 0.0503 | 0.228 | 2.23 |
 
 Because 42 factors are screened at the 5% level, the summary table also reports a
@@ -51,10 +51,10 @@ historical rebalances cannot see later test outcomes.
 | Metric | Value |
 |--------|-------|
 | Rank-IC (mean) | 0.0447 |
-| ICIR | 0.211 |
-| t-stat | 1.81 |
-| Positive-IC ratio | 58.1% |
-| Long-short IR | 0.126 |
+| ICIR | 0.205 |
+| t-stat | 1.76 |
+| Positive-IC ratio | 57.1% |
+| Long-short IR | 0.132 |
 | Out-of-sample periods | 1,545 |
 
 ## Risk model
@@ -73,35 +73,37 @@ explicit.
 
 | Metric | Net (after-cost) | Gross (pre-cost) |
 |--------|------------------|------------------|
-| Total return | 5.01% | 6.24% |
-| CAGR | 0.79% | 0.98% |
-| Annualised vol | 13.38% | 13.38% |
-| Sharpe | 0.126 | 0.140 |
-| Sortino | 0.177 | 0.197 |
-| Max drawdown | −22.8% | −22.7% |
-| Calmar | 0.035 | 0.043 |
-| Cost drag (CAGR gap) | — | **0.19% / yr** |
+| Total return | 3.09% | 4.27% |
+| CAGR | 0.49% | 0.68% |
+| Annualised vol | 13.34% | 13.35% |
+| Sharpe | 0.103 | 0.117 |
+| Sortino | 0.146 | 0.165 |
+| Max drawdown | −23.3% | −23.2% |
+| Calmar | 0.021 | 0.029 |
+| Cost drag (CAGR gap) | — | **0.18% / yr** |
 
 Headline diagnostics: **60 rebalances** (2 skipped — insufficient scored names),
-**1,868 trades**, **¥112,389 total cost** (~1.12% of initial capital over the
-full sample), average **23.9 holdings**, average gross exposure **0.83**, beta
+**1,861 trades**, **107,985 simulated units in total costs** (~1.08% of initial
+capital over the full sample), average **23.8 holdings**, average gross exposure **0.83**, beta
 **≈ 0.47** versus the SP500 sample benchmark (≈71% of variance explained by the
 market, R²=0.71) — a modestly market-exposed long-only book, not market-neutral.
 
 ## Interpretation
 
-* **Reproducibility.** Same seed, same config, same numbers — the whole run is
-  deterministic and re-runs from `alphaforge research run`.
-* **Cost honesty.** The gross-sharpe / net-sharpe gap (0.140 vs 0.126) is small
+* **Reproducibility.** The recorded seed, config, source hashes, Python and
+  dependencies are in [`docs/sample/manifest.json`](../docs/sample/manifest.json).
+  `python scripts/publish_sample.py` rebuilds the public example.
+* **Cost honesty.** The gross-sharpe / net-sharpe gap (0.117 vs 0.103) is small
   because average turnover is only 0.24; the report states the drag in basis
   points, not prose.
 * **Benchmark exposure.** Versus the SP500 sample benchmark the book carries
-  beta ≈ 0.47 (R²=0.71) and information ratio ≈ 0.25; the excess return is a
-  genuine low-beta alpha, not a disguised market bet.
+  beta ≈ 0.47 (R²=0.71) and information ratio ≈ 0.23. The active return is
+  positive in this synthetic run and does not establish a live edge.
 * **Look-ahead guarded.** Signals are executed one session after the signal
-  date, and the benchmark is stored as a return series (never double-differenced).
+  date; the historical portfolio uses the predeclared IC rather than the full
+  test-window IC; the benchmark return series is never double-differenced.
 * **Candid weakness.** On this synthetic panel the strategy is barely
-  positive — CAGR 0.79% net, Sharpe 0.13. That is the honest result of moderate
+  positive — CAGR 0.49% net, Sharpe 0.10. That is the honest result of moderate
   injected signal plus real costs, and it is the correct answer to report. The
   engineering (validation, CV, costs, attribution) is what transfers to a real
   book; the alpha itself would be re-estimated on live data.

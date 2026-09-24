@@ -1,4 +1,8 @@
-> Historical engineering snapshot. Test counts and numerical results below describe an older revision. See `validation.md` and `sample-run.md` for the current checks and reproducible example.
+> Historical engineering snapshot. The performance figures below used an
+> aggregate test-window IC in earlier portfolio decisions, so they are not
+> valid as a look-ahead-free backtest. The test counts also describe an older
+> revision. See `validation.md` and `sample-run.md` for current checks and the
+> recomputed synthetic example.
 
 # AlphaForge — Final Engineering Report
 
