@@ -67,6 +67,7 @@ model:
 
 portfolio:
   method: mean_variance
+  assumed_ic: 0.03         # fixed ex ante; never estimated on future test folds
   long_only: true
   fully_invested: true
   max_weight: 0.05

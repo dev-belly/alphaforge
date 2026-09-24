@@ -26,8 +26,9 @@ estimation never reach forward information.
 **3. How is the walk-forward CV set up?**
 `models/split.py` builds folds with **purge** (drop training observations whose
 label overlaps the validation window) and **embargo** (a gap after each train
-fold). The model is always evaluated out-of-sample; the IC that reaches the
-portfolio is the walk-forward out-of-sample IC, never an in-sample fit.
+fold). The model is evaluated out of sample, but its aggregate test IC is
+reported only after evaluation. The portfolio uses a fixed, predeclared
+`portfolio.assumed_ic`; using future test IC in past rebalances would leak.
 
 **4. How do you handle transaction costs honestly?**
 `execution/costs.py` models commission + slippage (linear in notional) + square-root
@@ -56,7 +57,7 @@ correction.
 
 **8. How does portfolio optimization work?**
 `PortfolioConstructor` turns scores into expected returns
-(`mu = shrunk_ic · z · Σ`, cash-neutral), estimates the trailing-window
+(`mu = shrunk_ic · z · sigma`, cash-neutral), estimates the trailing-window
 covariance, then solves via `PortfolioOptimizer`: equal-weight, min-variance,
 mean-variance (QP), max-sharpe (Charnes-Cooper), or risk-parity (SLSQP). Long-only,
 position cap, turnover limit, industry-deviation (penalised slack) and vol-target

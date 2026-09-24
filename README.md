@@ -157,8 +157,10 @@ See [`docs/modules/factor_research.md`](docs/modules/factor_research.md).
 
 `models/split.py` builds folds with **purge** (drop training labels that overlap
 the validation window) and **embargo** (a gap after each train fold). Ridge /
-ElasticNet / RandomForest / LightGBM are supported; the IC that reaches the
-portfolio is always the walk-forward out-of-sample IC, never an in-sample fit.
+ElasticNet / RandomForest / LightGBM are supported. Walk-forward Rank-IC is an
+evaluation metric; the portfolio uses a fixed `portfolio.assumed_ic` set before
+the run. Using the full evaluation IC at earlier rebalances would leak future
+test returns.
 
 ## Risk model
 
@@ -173,7 +175,7 @@ portfolio is estimated on the trailing window only, default `ledoit_wolf`
 ## Portfolio optimization
 
 `PortfolioConstructor` converts a score into an expected return
-(`mu = shrunk_ic · z · Σ`, cash-neutral, IC shrunk toward zero), estimates the
+(`mu = shrunk_ic · z · sigma`, cash-neutral, IC shrunk toward zero), estimates the
 trailing-window covariance, then solves via `PortfolioOptimizer`: equal-weight,
 min-variance, mean-variance (QP), max-sharpe (Charnes-Cooper), or risk-parity
 (SLSQP). Constraints are explicit: long-only, position cap, turnover limit,

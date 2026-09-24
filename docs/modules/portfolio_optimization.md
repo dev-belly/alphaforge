@@ -11,7 +11,7 @@ than patching them on afterwards.
 from alphaforge.portfolio.constructor import PortfolioConstructor, ConstructionConfig
 
 cons = PortfolioConstructor(panel, optimizer_config, construction_config)
-w = cons.construct(date, scores, prev_weights=prev_w, ic=rank_ic)
+w = cons.construct(date, scores, prev_weights=prev_w, ic=assumed_ic)
 ```
 
 ## `PortfolioConstructor` — the glue
@@ -29,9 +29,11 @@ accounting engine.
   are cached per date.
 * **Expected returns** — `implied_expected_returns` converts the score into an
   alpha: `mu = shrunk_ic * z * sigma`, benchmark-relative (cash-neutral). The IC
-  used is **always the walk-forward out-of-sample IC** from the model layer —
-  never an in-sample fit — and it is shrunk toward zero (`ic_shrinkage`, default
-  0.5) because an IC estimated on a few hundred cross-sections is itself noisy.
+  used by the pipeline is a fixed ex-ante `portfolio.assumed_ic` (default 0.03),
+  shrunk toward zero (`ic_shrinkage`, default 0.5). The aggregate walk-forward
+  IC is an evaluation result: feeding it to earlier rebalances would expose
+  those decisions to future test returns. Set the assumption before running
+  the backtest; do not tune it on the same test window.
 * **Volatility targeting** — if the QP returns a hotter book than the budget
   allows (e.g. a binding turnover/industry constraint), de-levering into cash is
   the honest fallback (`_apply_vol_target`).

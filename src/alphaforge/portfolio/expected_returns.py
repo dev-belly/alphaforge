@@ -11,8 +11,9 @@ is what makes the subsequent mean-variance problem dimensionally sane: without
 it the optimiser treats a z-score on a 60%-vol name the same as on a 15%-vol
 name.
 
-The IC used here is estimated **out-of-sample** (walk-forward), never fitted
-in-sample, and is shrunk toward zero to reflect estimation error.
+The pipeline supplies a fixed, ex-ante IC from ``portfolio.assumed_ic`` and
+shrinks it toward zero. Walk-forward IC is reported for evaluation only: using
+an aggregate over all test folds in past rebalances would leak future returns.
 """
 
 from __future__ import annotations

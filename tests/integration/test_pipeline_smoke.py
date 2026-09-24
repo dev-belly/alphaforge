@@ -10,14 +10,29 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import alphaforge.pipeline as pipeline_module
 from alphaforge.pipeline import ResearchPipeline
 from alphaforge.utils.config import Config, set_global_seed
 
 
 @pytest.mark.slow
-def test_full_pipeline_runs_and_reports(tmp_path):
+def test_full_pipeline_runs_and_reports(tmp_path, monkeypatch):
     set_global_seed(42)
-    cfg = Config.load(overrides={"portfolio": {"method": "mean_variance"}})
+    cfg = Config.load(
+        overrides={
+            "portfolio": {"method": "mean_variance", "assumed_ic": 0.031},
+            "cost": {"commission_bps": 37.0},
+        }
+    )
+    actual_engine = pipeline_module.BacktestEngine
+    captured = {}
+
+    def capture_engine(*args, **kwargs):
+        engine = actual_engine(*args, **kwargs)
+        captured["engine"] = engine
+        return engine
+
+    monkeypatch.setattr(pipeline_module, "BacktestEngine", capture_engine)
     report_dir = tmp_path / "reports"
     state = ResearchPipeline(cfg).run(
         start="2016-01-01",
@@ -34,6 +49,11 @@ def test_full_pipeline_runs_and_reports(tmp_path):
     assert state.brinson is not None, "brinson attribution must run"
     assert state.factor_attr is not None, "factor attribution must run"
     assert state.report_path is not None
+    assert state.diagnostics["assumed_ic"] == 0.031
+    assert state.model_eval.summary["rank_ic_mean"] != 0.031
+    assert captured["engine"].ic == 0.031
+    assert captured["engine"].cost_model.config.commission_bps == 37.0
+    assert state.backtest.costs.sum() > 0
 
     report = tmp_path / "reports" / "research_report.html"
     assert report.exists() and report.stat().st_size > 1000

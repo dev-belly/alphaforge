@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from alphaforge.attribution import brinson_attribution, factor_attribution
@@ -178,12 +179,20 @@ class ResearchPipeline:
             log.warning(f"Risk model skipped: {exc}")
 
         # -- 6. backtest ------------------------------------------------
-        cons = PortfolioConstructor(panel, cfg.get("portfolio", {}), cfg.get("risk", {}))
+        portfolio_cfg = cfg.get("portfolio", {})
+        # The full walk-forward evaluation covers future test folds. Using its
+        # aggregate IC at every historical rebalance would leak future outcomes.
+        assumed_ic = float(portfolio_cfg.get("assumed_ic", 0.03))
+        if not np.isfinite(assumed_ic) or abs(assumed_ic) > 1:
+            raise ValueError("portfolio.assumed_ic must be a finite correlation in [-1, 1]")
+        d["assumed_ic"] = assumed_ic
+        cons = PortfolioConstructor(panel, portfolio_cfg, cfg.get("risk", {}))
         bt = BacktestEngine(
             panel,
             constructor=cons,
             signals=state.signal_panel,
-            ic=wf.evaluation.summary.get("rank_ic_mean", 0.03),
+            ic=assumed_ic,
+            cost_model=cfg.get("cost", {}),
             config=BacktestConfig.from_dict(cfg.get("backtest", {})),
         ).run()
         state.backtest = bt

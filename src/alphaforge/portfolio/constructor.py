@@ -7,10 +7,10 @@ stay a pure accounting engine.
 
 Information coefficient
 -----------------------
-``implied_expected_returns`` needs an IC.  The value used here is always the
-**walk-forward out-of-sample** IC produced by the model layer - never an
-in-sample fit - and it is shrunk toward zero because an IC estimated on a few
-hundred cross-sections is itself noisy.
+``implied_expected_returns`` needs an IC. The research pipeline passes a fixed
+ex-ante assumption from ``portfolio.assumed_ic``, shrunk toward zero. The
+aggregate walk-forward IC is an evaluation metric and must not reach historical
+rebalances before its test outcomes are known.
 """
 
 from __future__ import annotations

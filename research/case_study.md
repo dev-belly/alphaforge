@@ -23,7 +23,7 @@ The machine-readable source for everything here is
 | ML model | Ridge, walk-forward CV with purge + embargo |
 | Portfolio | mean-variance, long-only, target vol 12% |
 | Rebalance | monthly, execution lag 1 session |
-| Capital | ¥10,000,000 (initial) |
+| Capital | 10,000,000 simulated units (initial) |
 
 ## Factor research
 
@@ -44,8 +44,9 @@ multiple-testing correction rather than trusting raw p-values.
 
 ## ML alpha (walk-forward)
 
-The model is trained and evaluated **out of sample only** — no in-sample IC ever
-reaches the portfolio.
+The model is evaluated out of sample. Its aggregate IC below is a diagnostic;
+portfolio construction uses the fixed, predeclared `assumed_ic: 0.03`, so
+historical rebalances cannot see later test outcomes.
 
 | Metric | Value |
 |--------|-------|

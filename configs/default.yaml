@@ -55,6 +55,7 @@ model:
 
 portfolio:
   method: mean_variance   # equal_weight | mean_variance | min_variance | max_sharpe | risk_parity
+  assumed_ic: 0.03         # fixed before the run; OOS evaluation IC is reporting only
   long_only: true
   fully_invested: true
   max_weight: 0.05
