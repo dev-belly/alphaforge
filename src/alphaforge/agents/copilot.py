@@ -25,6 +25,16 @@ from alphaforge.utils.logging import get_logger
 
 log = get_logger("agents.copilot")
 
+
+def _reported(value, default: float = float("nan")) -> float:
+    """Coerce a possibly-absent metric to something an f-string can format.
+
+    ``None`` and a missing key both mean "this run did not report it", and both
+    have to become NaN rather than reaching ``f"{value:+.2%}"``.
+    """
+    return default if value is None else value
+
+
 RULES = [
     ("Sharpe > 1.0", lambda m: (m.get("sharpe") or 0) > 1.0, "strong risk-adjusted return"),
     (
@@ -34,7 +44,11 @@ RULES = [
     ),
     (
         "Sharpe < 0.5",
-        lambda m: (m.get("sharpe") or 0) < 0.5,
+        # ``or 0`` makes an absent Sharpe indistinguishable from a genuine 0.0,
+        # and 0.0 satisfies this comparison - so an empty metrics dict used to
+        # produce "weak risk-adjusted return" about a number never received.
+        # A rule may only fire on data the copilot actually holds.
+        lambda m: m.get("sharpe") is not None and m["sharpe"] < 0.5,
         "weak risk-adjusted return - review alpha",
     ),
     (
@@ -64,7 +78,9 @@ RULES = [
     ),
     (
         "Negative IC",
-        lambda m: (m.get("rank_ic_mean") or 0) <= 0,
+        # Same trap as "Sharpe < 0.5": ``0 <= 0`` holds, so a missing IC was
+        # reported as a non-positive one - and into *warnings*, which is worse.
+        lambda m: m.get("rank_ic_mean") is not None and m["rank_ic_mean"] <= 0,
         "model IC is non-positive - signal useless",
     ),
 ]
@@ -185,7 +201,10 @@ class ResearchCopilot:
                     f"(ann {w.get('ann_return', float('nan')):+.2%})."
                 )
         stress_data = self._get(results, "stress")
-        if stress_data:
+        if isinstance(stress_data, dict):
+            # The container is checked too: the values were already guarded, but
+            # a non-dict payload took `.items()` down and, since only the
+            # per-rule calls are wrapped, killed the whole briefing.
             losses = {
                 nm: d.get("pnl_pct", 0.0) for nm, d in stress_data.items() if isinstance(d, dict)
             }
@@ -227,12 +246,13 @@ class ResearchCopilot:
         model = self._get(results, "model") or {}
         if not bt:
             return "Research briefing: backtest not run - see factor/model sections."
-        cagr = bt.get("cagr", float("nan"))
-        sharpe = bt.get("sharpe", float("nan"))
-        return (
-            f"Strategy CAGR {cagr:+.2%}, Sharpe {sharpe:.2f} "
-            f"(model Rank-IC {model.get('rank_ic_mean'):+.4f})."
-        )
+        # A key that is present but ``None`` is not covered by ``dict.get``'s
+        # default, and ``f"{None:+.2%}"`` raises TypeError out of ``analyze``
+        # with nothing to catch it. All three fields need the same treatment.
+        cagr = _reported(bt.get("cagr"))
+        sharpe = _reported(bt.get("sharpe"))
+        rank_ic = _reported(model.get("rank_ic_mean"))
+        return f"Strategy CAGR {cagr:+.2%}, Sharpe {sharpe:.2f} (model Rank-IC {rank_ic:+.4f})."
 
     # ------------------------------------------------------------------
     def _llm_prose(self, results: dict[str, ToolResult]) -> str:

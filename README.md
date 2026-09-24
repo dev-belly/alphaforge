@@ -439,6 +439,22 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   benchmark's first return is already in the line, a gap in the benchmark stays
   a gap without truncating the curve (`Series.cumprod` skips NaN), a failing
   chart still closes its figure, and every renderer returns a real PNG.
+* `agents` — the copilot's rule layer is locked offline (100% on `copilot.py`).
+  Its whole claim is that it does not fabricate - "every sentence is grounded in
+  a number it actually received" - which makes the failure that matters a
+  *fabricated sentence*, and the way to write one is to confuse "the value is
+  zero" with "there is no value": `m.get(key) or 0` collapses the two. Two rules
+  did exactly that, so a completely empty metrics dict produced "Sharpe < 0.5:
+  weak risk-adjusted return - review alpha" and, into *warnings*, "Negative IC:
+  model IC is non-positive - signal useless" - two conclusions about numbers the
+  copilot had never seen. Both now require the key to be present, and a blanket
+  test asserts that **no** rule fires on `{}`, so a future rule written with the
+  same `or 0` shape fails there rather than in a briefing. `_headline` had the
+  sibling defect: `cagr` and `sharpe` carried NaN defaults but `rank_ic_mean`
+  did not - and a key present with value `None` is not covered by `dict.get`'s
+  default either - so one absent field raised TypeError out of the f-string and
+  took the whole briefing with it. A non-dict stress payload crashed
+  `_rule_findings` the same way; only the per-rule calls were wrapped.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
