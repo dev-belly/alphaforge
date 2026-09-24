@@ -228,3 +228,110 @@ def test_estimate_result_is_a_covariance_estimate() -> None:
     estimate = CovarianceEstimator("ledoit_wolf").estimate(_returns())
     assert isinstance(estimate, CovarianceEstimate)
     assert estimate.to_numpy().shape == (5, 5)
+
+
+# --------------------------------------------------------------------------
+# Short-history names
+# --------------------------------------------------------------------------
+def _ragged(n: int = 252, short_obs: int = 60) -> pd.DataFrame:
+    """Six names, one of which only has ``short_obs`` observations.
+
+    The panel-level eligibility floor is a 60-observation history, but every
+    estimator here needs at least half the window (floor 20) of *overlapping*
+    observations before a covariance exists at all - so a name can clear the
+    first gate and still make the matrix singular-by-construction.
+    """
+    rng = np.random.default_rng(3)
+    symbols = [f"A{i}" for i in range(6)]
+    rets = pd.DataFrame(rng.normal(0.0003, 0.012, size=(n, len(symbols))), columns=symbols)
+    rets.iloc[: n - short_obs, -1] = np.nan
+    return rets
+
+
+def test_a_short_history_name_raises_an_actionable_error() -> None:
+    """Regression: this used to surface as "Eigenvalues did not converge".
+
+    That message names neither the asset nor the reason, so the only way to find
+    it was to bisect the universe by hand.
+    """
+    with pytest.raises(ValueError, match="non-finite entries"):
+        CovarianceEstimator("sample").estimate(_ragged())
+
+
+def test_the_error_names_only_the_asset_that_is_actually_short() -> None:
+    """A short name makes its whole row and column NaN - do not blame its peers."""
+    with pytest.raises(ValueError) as excinfo:
+        CovarianceEstimator("sample").estimate(_ragged())
+    message = str(excinfo.value)
+    assert "A5" in message
+    for other in ("A0", "A1", "A2", "A3", "A4"):
+        assert other not in message, f"{other} is not short of history"
+    assert "half the window" in message
+
+
+def test_the_error_survives_a_name_that_is_entirely_missing() -> None:
+    rets = _ragged()
+    rets["A2"] = np.nan
+    with pytest.raises(ValueError, match="A2"):
+        CovarianceEstimator("sample").estimate(rets)
+
+
+@pytest.mark.parametrize("method", ["sample", "ledoit_wolf", "shrinkage", "ewma"])
+def test_a_clean_universe_is_unaffected(method: str) -> None:
+    estimate = CovarianceEstimator(method).estimate(_returns(n=252))
+    assert np.isfinite(estimate.to_numpy()).all()
+
+
+def test_compare_estimators_still_reports_the_survivors_on_a_ragged_panel() -> None:
+    out = compare_estimators(_ragged())
+    assert not out.empty
+    assert "sample" not in set(out["method"].str.split("(").str[0])
+
+
+# --------------------------------------------------------------------------
+# Ledoit-Wolf shrinkage intensity
+# --------------------------------------------------------------------------
+def test_the_shrinkage_intensity_is_a_probability() -> None:
+    """It is a convex combination weight; outside [0, 1] the blend is meaningless."""
+    for seed in range(4):
+        label = CovarianceEstimator("ledoit_wolf").estimate(_returns(n=120, seed=seed)).method
+        intensity = float(label.split("intensity=")[1].rstrip(")"))
+        assert 0.0 <= intensity <= 1.0
+
+
+def test_shrinkage_with_a_single_observation_is_rejected() -> None:
+    one_row = _returns(n=1, p=4)
+    with pytest.raises(ValueError, match="Not enough observations"):
+        CovarianceEstimator("ledoit_wolf").estimate(one_row)
+
+
+def test_a_two_asset_book_is_the_minimum() -> None:
+    with pytest.raises(ValueError, match="at least two assets"):
+        CovarianceEstimator("sample").estimate(_returns(p=1))
+
+
+def test_a_pair_with_no_overlap_is_reported_by_name() -> None:
+    """Two names can each have enough history yet never overlap with each other.
+
+    The diagonal stays finite in that case, so the message has to fall back to
+    naming the affected covariances rather than claiming the assets are short.
+    """
+    rng = np.random.default_rng(11)
+    rets = pd.DataFrame(rng.normal(0.0003, 0.012, size=(252, 4)), columns=["A0", "A1", "A2", "A3"])
+    rets.iloc[:126, 0] = np.nan  # A0 only exists in the second half
+    rets.iloc[126:, 1] = np.nan  # A1 only exists in the first half
+
+    with pytest.raises(ValueError) as excinfo:
+        CovarianceEstimator("sample").estimate(rets)
+    message = str(excinfo.value)
+    assert "A0" in message and "A1" in message
+    assert "undefined" in message
+    assert "without enough overlap" not in message
+
+
+def test_the_optimal_intensity_is_zero_when_the_target_is_already_the_sample() -> None:
+    """``denom`` collapses to zero; the intensity must be 0, not a division by zero."""
+    rets = _returns(n=120, p=4)
+    cov = rets.cov(min_periods=60).to_numpy(dtype=float) * 252.0
+    estimator = CovarianceEstimator("ledoit_wolf")
+    assert estimator._optimal_intensity(rets, cov, cov) == 0.0

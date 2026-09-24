@@ -455,6 +455,32 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   default either - so one absent field raised TypeError out of the f-string and
   took the whole briefing with it. A non-dict stress payload crashed
   `_rule_findings` the same way; only the per-rule calls were wrapped.
+* `risk` — the covariance estimators are locked offline (100% on
+  `covariance.py`): every method returns a square, symmetric, PSD matrix, the
+  structured estimator decomposes to `B F B' + D` and refuses to run without
+  both inputs, and the shrinkage intensity is asserted to be a probability
+  because it is a convex-combination weight. A **short-history name** used to
+  surface as `LinAlgError: Eigenvalues did not converge` from inside `eigh`,
+  which names neither the asset nor the reason. The panel-level eligibility
+  floor is a 60-observation history while the estimators need at least half the
+  window (floor 20) of *overlapping* observations, so a name can clear the first
+  gate and still make the matrix non-finite by construction; `_psd` now names
+  the offending assets and says what to do. It reports the *diagonal* offenders
+  specifically, because one short name makes its whole row and column NaN and
+  listing every asset that pairs with it would point at the wrong culprit. A
+  pair of names that each have enough history but never overlap falls back to
+  naming the affected covariances instead.
+* `pipeline` — the research orchestrator's pure helpers are locked offline
+  (`_style_factor_exposures`, `_decomp_table`, `_notes`, `as_tool_state`,
+  `run_research`, construction). These decide *what the risk model sees* and
+  *what the report claims*: the style mapper must return a cross-sectional
+  Series per style factor - a time-series-shaped object would be silently
+  consumed by the optimiser - and must resolve its alias list in order and leave
+  `size` to the risk model, and `_decomp_table` must attach the covariance the
+  chart needs and fall back to the factor covariance rather than to something
+  arbitrary. `ResearchPipeline.run` itself is left to the integration suite: it
+  is a 200-line linear orchestration with no arithmetic, and driving it from a
+  unit test would mean stubbing a dozen collaborators and asserting the stubs.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)

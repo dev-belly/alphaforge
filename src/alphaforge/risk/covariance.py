@@ -251,6 +251,34 @@ class CovarianceEstimator:
     def _psd(cov: pd.DataFrame) -> pd.DataFrame:
         """Nearest PSD projection with a small ridge for numerical stability."""
         m = cov.to_numpy(dtype=float)
+        finite = np.isfinite(m)
+        if not finite.all():
+            # ``eigh`` reports this as "Eigenvalues did not converge", which says
+            # nothing about which name is short of history or how short. A name
+            # needs at least half the window (floor 20) of overlapping
+            # observations for its covariances to exist at all, so an asset that
+            # clears the portfolio's eligibility floor but not this one lands
+            # here. Name the offenders instead of failing inside LAPACK.
+            # The diagonal identifies the real offenders: a name with too little
+            # history makes its whole row and column NaN, so every *other* asset
+            # shows up as non-finite too and listing all of them would point at
+            # the wrong culprit.
+            short = [str(c) for c, ok in zip(cov.columns, np.diag(finite)) if not ok]
+            if short:
+                detail = (
+                    f"Assets without enough overlap (need half the window, floor "
+                    f"20 observations): {', '.join(short)}. Drop them or shorten "
+                    "the window."
+                )
+            else:
+                affected = sorted(
+                    {str(c) for c in cov.columns[~finite.all(axis=0)]}
+                    | {str(c) for c in cov.index[~finite.all(axis=1)]}
+                )
+                detail = f"The covariances involving {', '.join(affected)} are undefined."
+            raise ValueError(
+                f"Covariance matrix has {int((~finite).sum())} non-finite entries. {detail}"
+            )
         m = 0.5 * (m + m.T)
         vals, vecs = np.linalg.eigh(m)
         vals = np.clip(vals, 1e-10, None)
