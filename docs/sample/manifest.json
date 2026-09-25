@@ -1,9 +1,9 @@
 {
-  "generated_at_utc": "2026-09-24T16:51:39.624179+00:00",
+  "generated_at_utc": "2026-09-25T12:51:00.787410+00:00",
   "provider": "sample (synthetic)",
   "seed": 42,
   "command": "python scripts/publish_sample.py",
-  "source_revision": "cd215f9e1b615c27dcb61c84a76a71ce0b89bd13",
+  "source_revision": "f9da6d6f1ae700dca0639ea9a6f28f5906550d8d",
   "python": "3.12.14",
   "dependencies": {
     "Jinja2": "3.1.6",
@@ -108,7 +108,7 @@
     "src/alphaforge/backtest/metrics.py": "12530bcdb8e48aa7894fd69189de287a23ad31d4929720ce19030139ff02b426",
     "src/alphaforge/cli.py": "11b138c401ea0f8ea1210151bb988905d12c9a9914c12f6221831f99f70113e5",
     "src/alphaforge/data/__init__.py": "219e79f2328025da8e75d24b3c3e0b357794e974c79a1266b310413e4db9a254",
-    "src/alphaforge/data/calendar.py": "e4a9f35831d9f8e60076e34b3342483aafacf3395376eeadfacf23d7107d4322",
+    "src/alphaforge/data/calendar.py": "fecb9bbfa29c58ab3c8d8c44a81dba55a6dc62eb390c20aff7894d12d7fbfc2d",
     "src/alphaforge/data/pipeline.py": "dfa127aab6083d22ccdb20b12a56777356858bd7cddedf244c16f5769d524486",
     "src/alphaforge/data/providers/__init__.py": "0ee0a928c188d45ec791a20aa9cdaad08cae6e283b37b71683493fb44ff2ed84",
     "src/alphaforge/data/providers/base.py": "50e5c86ae523697b8150ee8ccaa76a1c322765da02177f3c6e86c4b7655e852d",
@@ -159,10 +159,10 @@
     "src/alphaforge/utils/math_utils.py": "58c60902bd48ffdcc3d399441ce6b4b96e67ed7fbf2765188a7069937fd18a88"
   },
   "artifact_sha256": {
-    "docs/sample/research_report.html": "47b934476413c608f5f228b47b731a97613dd7d9c6fd643007fc129f70b7fa8f",
-    "docs/sample/daily_results.csv": "6acbec516df93d6d5d68026f7d4ebd7c60f71b318a4bf39b702e3bf61473a10c",
+    "docs/sample/research_report.html": "21c504cb666b254194fdd57722b0ef6573e1823224d4277abe943b31cbf28351",
+    "docs/sample/daily_results.csv": "e19c2329e395ca9703ad7922cde69cb1ea1c486eb946dc40536775226407ce5b",
     "docs/sample/config.json": "aeb628a8459f39240aad1b1eee54b7815009c77ae60877ddf347f50e02a0bea0",
-    "docs/sample/metrics.json": "4efc5fe21fa480e0d92c26e32a88e1026e05e4effd8c8f7d269f6d425dc97867",
+    "docs/sample/metrics.json": "2a8e0b605fc879259165aed7f8a8cbd56590d1369b0805156fe1876448c65aa6",
     "assets/equity_curve.png": "76304ee0d218f61ceb487971803bc9663ba038fadbce981b2a2e4f1ad5bf508e",
     "assets/factor_ic.png": "7491ea704dcdbc04e93a89b85f721d3af2c347b14e3cdc6294ae2fd507f871e3",
     "assets/regime_returns.png": "09ef627c8d31d84097e1793f8a3119e8227cc64478b014604e4079e93ef755af"
