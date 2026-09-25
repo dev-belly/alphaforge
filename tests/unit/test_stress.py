@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from alphaforge.risk.factor_model import (
     FundamentalRiskModel,
@@ -89,3 +90,174 @@ def test_integrated_run_via_fundamental_model():
     assert out, "expected at least one scenario to resolve"
     for r in out.values():
         assert np.isfinite(r.pnl_pct)
+
+
+# --------------------------------------------------------------------------
+# StressResult
+# --------------------------------------------------------------------------
+def test_worst_holdings_is_empty_without_a_contribution_vector():
+    """A result built without contributions has no ranking to offer."""
+    from alphaforge.risk.stress import StressResult
+
+    bare = StressResult(scenario="s", pnl_pct=-0.05, shock={"market": -0.05})
+    assert bare.worst_holdings() == []
+
+
+def test_worst_holdings_ranks_the_most_negative_first():
+    from alphaforge.risk.stress import StressResult
+
+    contributions = pd.Series({"A": -0.02, "B": 0.01, "C": -0.05})
+    result = StressResult(
+        scenario="s", pnl_pct=-0.06, shock={"market": -0.05}, contributions=contributions
+    )
+    got = result.worst_holdings(n=2)
+    assert [row["symbol"] for row in got] == ["C", "A"]
+    assert got[0]["contribution"] == pytest.approx(-0.05)
+
+
+def test_worst_holdings_honours_n():
+    from alphaforge.risk.stress import StressResult
+
+    contributions = pd.Series(np.linspace(-0.10, 0.10, 20), index=[f"A{i}" for i in range(20)])
+    result = StressResult(scenario="s", pnl_pct=-0.1, shock={}, contributions=contributions)
+    assert len(result.worst_holdings(n=3)) == 3
+    assert len(result.worst_holdings(n=50)) == 20
+
+
+def test_to_dict_carries_everything_the_report_needs():
+    risk = _fake_risk()
+    w = pd.Series(1.0 / 20, index=risk.exposures.index)
+    result = stress_portfolio(w, risk, {"kind": "factor", "factor": "market", "value": -0.10}, "m")
+    got = result.to_dict()
+    assert got["scenario"] == "m"
+    assert got["pnl_pct"] == pytest.approx(result.pnl_pct)
+    assert got["shock"] == {"market": -0.10}
+    assert got["factor_exposure"]
+    assert got["worst_holdings"], "the report needs the holdings that drove the loss"
+
+
+def test_to_dict_is_empty_safe_for_a_bare_result():
+    from alphaforge.risk.stress import StressResult
+
+    got = StressResult(scenario="s", pnl_pct=-0.01, shock={}).to_dict()
+    assert got["worst_holdings"] == []
+    assert got["factor_exposure"] == {}
+
+
+# --------------------------------------------------------------------------
+# run_scenarios
+# --------------------------------------------------------------------------
+def test_run_scenarios_skips_a_scenario_that_raises(monkeypatch):
+    """One bad spec must not sink the rest of the book."""
+    from alphaforge.risk import stress as stress_module
+
+    risk = _fake_risk()
+    w = pd.Series(1.0 / 20, index=risk.exposures.index)
+    real = stress_module.stress_portfolio
+
+    def flaky(weights, risk_result, spec, name=None):
+        if name == "boom":
+            raise ValueError("malformed spec")
+        return real(weights, risk_result, spec, name=name)
+
+    monkeypatch.setattr(stress_module, "stress_portfolio", flaky)
+    got = run_scenarios(
+        w,
+        risk,
+        {
+            "boom": {"kind": "factor", "factor": "market", "value": -0.5},
+            "ok": {"kind": "factor", "factor": "market", "value": -0.10},
+        },
+    )
+    assert set(got) == {"ok"}
+    assert got["ok"].pnl_pct == pytest.approx(-0.10, abs=1e-9)
+
+
+def test_an_empty_scenario_mapping_means_the_defaults():
+    """``scenarios or DEFAULT_SCENARIOS``: an empty dict is falsy, like None."""
+    risk = _fake_risk()
+    w = pd.Series(1.0 / 20, index=risk.exposures.index)
+    assert set(run_scenarios(w, risk, {})) == set(DEFAULT_SCENARIOS)
+    assert set(run_scenarios(w, risk, None)) == set(DEFAULT_SCENARIOS)
+
+
+# --------------------------------------------------------------------------
+# sector_shock
+# --------------------------------------------------------------------------
+def _sector_book():
+    industry = pd.Series(
+        {"A": "Tech", "B": "Tech", "C": "Energy", "D": "Health"},
+    )
+    weights = pd.Series({"A": 0.4, "B": 0.1, "C": 0.3, "D": 0.2})
+    return weights, industry
+
+
+def test_a_sector_shock_hits_only_that_sector():
+    from alphaforge.risk.stress import sector_shock
+
+    weights, industry = _sector_book()
+    got = sector_shock(weights, industry, "Tech", 0.20)
+    # 0.4 + 0.1 = 0.5 of NAV in Tech, shocked by -20% -> -10%.
+    assert got.pnl_pct == pytest.approx(-0.10, rel=1e-12)
+
+
+def test_a_positive_shock_is_still_a_loss():
+    """The helper takes a shock *size*; the sign is the function's job."""
+    from alphaforge.risk.stress import sector_shock
+
+    weights, industry = _sector_book()
+    assert sector_shock(weights, industry, "Tech", 0.20).pnl_pct == pytest.approx(
+        sector_shock(weights, industry, "Tech", -0.20).pnl_pct
+    )
+
+
+def test_an_untouched_sector_contributes_nothing():
+    from alphaforge.risk.stress import sector_shock
+
+    weights, industry = _sector_book()
+    got = sector_shock(weights, industry, "Tech", 0.20)
+    contributions = got.contributions
+    assert contributions["C"] == pytest.approx(0.0)
+    assert contributions["D"] == pytest.approx(0.0)
+    assert contributions["A"] == pytest.approx(-0.08)
+
+
+def test_the_scenario_label_encodes_the_sector_and_the_shock():
+    from alphaforge.risk.stress import sector_shock
+
+    weights, industry = _sector_book()
+    assert sector_shock(weights, industry, "Tech", 0.15).scenario == "sector_Tech_15pct"
+    assert sector_shock(weights, industry, "Energy", 0.30).scenario == "sector_Energy_30pct"
+
+
+def test_the_sector_weight_is_reported():
+    from alphaforge.risk.stress import sector_shock
+
+    weights, industry = _sector_book()
+    got = sector_shock(weights, industry, "Tech", 0.20)
+    assert got.factor_exposure["sector_weight"] == pytest.approx(0.5)
+
+
+def test_an_unknown_sector_shocks_nothing():
+    from alphaforge.risk.stress import sector_shock
+
+    weights, industry = _sector_book()
+    got = sector_shock(weights, industry, "Utilities", 0.50)
+    assert got.pnl_pct == pytest.approx(0.0)
+    assert got.factor_exposure["sector_weight"] == pytest.approx(0.0)
+
+
+def test_a_held_name_missing_from_the_industry_map_is_not_shocked():
+    """It cannot be attributed to a sector, so it contributes nothing.
+
+    Documented rather than fixed: the helper reindexes the book onto the
+    industry map, so an unclassified holding silently leaves the scenario. In
+    the pipeline the map comes from the panel and covers every traded symbol.
+    """
+    from alphaforge.risk.stress import sector_shock
+
+    weights = pd.Series({"A": 0.5, "ZZ": 0.5})
+    industry = pd.Series({"A": "Tech"})
+    got = sector_shock(weights, industry, "Tech", 0.20)
+    assert got.pnl_pct == pytest.approx(-0.10)
+    assert "ZZ" not in got.contributions.index

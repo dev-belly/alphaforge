@@ -512,6 +512,22 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   warning level - on the demo run it immediately reported 60/61 rather than a
   silent 61/61. The mapping itself is unchanged: clamping onto the final session
   is a deliberate choice, not a bug.
+* Also locked offline: the config loader (100% on `utils/config.py`), the
+  investable-universe builder (99% on `data/universe.py`) and the scenario
+  stress helper (100% on `risk/stress.py`). Every run reads the config, so a
+  defect there is not local - it silently changes what the whole platform is
+  configured to do. The failure that matters is the quiet one: an override that
+  lands on a key nobody reads, an environment variable whose dotted path is
+  misspelt, a merge that mutates the base it was given. The five
+  `ALPHAFORGE_*` mappings are asserted against the default config, because a
+  typo there produces an env var that parses fine, merges fine, and does
+  nothing; and the precedence is pinned as a decision (explicit `overrides`
+  merges first, the environment last, so the environment wins). The universe
+  decides which names a backtest is *allowed* to trade, so the tests assert that
+  membership never leaks backwards - forward-filled from the snapshot date, a
+  date before the first snapshot is empty - that the price/ADV/history screens
+  are trailing-only, and that a fresh listing is not investable until it has
+  `min_history` observations.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
