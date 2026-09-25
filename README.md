@@ -481,6 +481,22 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   arbitrary. `ResearchPipeline.run` itself is left to the integration suite: it
   is a 200-line linear orchestration with no arithmetic, and driving it from a
   unit test would mean stubbing a dozen collaborators and asserting the stubs.
+* `backtest` — the performance statistics are locked offline (100% on
+  `metrics.py`), and they are pure arithmetic on a return series, so every
+  headline number in the report is only as good as they are. Sharpe, Sortino,
+  volatility, downside deviation, VaR/CVaR, capture ratios and CAGR are
+  recomputed from their definitions rather than asserted against the code, and
+  the degenerate cases are pinned: a flat series has no drawdown and therefore an
+  **undefined** Calmar rather than an infinite one, a zero-variance series does
+  not divide by zero, an empty series reports an error instead of raising, and
+  relative stats need three overlapping points before beta means anything.
+  The gross-vs-net reconciliation gets its own identity test - the docstring
+  claims the additive cost add-back recovers the gross series *exactly*, and it
+  does, but only because the engine compounds the pre-cost NAV from the
+  **post-cost** prior NAV. A probe that compounds the gross curve independently
+  from the initial capital disagrees by ~0.9pp of CAGR and looks like a bug; it
+  is not one, and the test replays the engine's actual recursion so nobody
+  "fixes" it.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)
