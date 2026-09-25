@@ -497,6 +497,21 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   from the initial capital disagrees by ~0.9pp of CAGR and looks like a bug; it
   is not one, and the test replays the engine's actual recursion so nobody
   "fixes" it.
+* `data` — the trading calendar is locked offline (100% on `calendar.py`).
+  Date alignment is the quietest way to break a backtest: an off-by-one in the
+  execution schedule does not raise, it just trades on the close that produced
+  the signal. `execution_dates` is described as "the structural guard against
+  look-ahead execution", so the tests assert the direction of the shift directly
+  - every execution date must be strictly after its signal date and exactly `lag`
+  sessions later. Its in-sample diagnostic was **vacuous** and is fixed: it
+  counted ``d <= calendar.max()`` over the dates ``next()`` returned, but
+  ``next()`` clamps at the final session, so every execution date is trivially
+  within the sample and the log could only ever report N/N. With a lag of 10 on
+  a 20-session calendar the truth is 3 of 5 and the log said 5 of 5. It now
+  counts the signals whose *unclamped* target session exists, and says so at
+  warning level - on the demo run it immediately reported 60/61 rather than a
+  silent 61/61. The mapping itself is unchanged: clamping onto the final session
+  is a deliberate choice, not a bug.
 
 ```bash
 pytest -m "not slow"        # fast unit + regression (no heavy pipeline)

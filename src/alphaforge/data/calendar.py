@@ -81,9 +81,22 @@ def execution_dates(signal_dates: pd.DatetimeIndex, calendar: pd.DatetimeIndex, 
     """
     cal = TradingCalendar(calendar)
     exec_dates = [cal.next(d, lag) for d in signal_dates]
-    lag_ok = [d <= calendar.max() for d in exec_dates]
+    # ``next`` clamps at the final session, so every execution date is trivially
+    # within the sample and a comparison against ``calendar.max()`` could only
+    # ever report N/N. Count the signals whose *unclamped* target exists instead,
+    # which is the number that says whether the sample is long enough.
+    last_pos = len(calendar) - 1
+    lag_ok = [cal.position(d) + lag <= last_pos for d in signal_dates]
     out = pd.Series(exec_dates, index=signal_dates, name="execution_date")
-    log.debug(f"execution_dates: lag={lag} sessions, {sum(lag_ok)}/{len(lag_ok)} within sample")
+    n_ok = sum(lag_ok)
+    if n_ok < len(lag_ok):
+        log.warning(
+            f"execution_dates: lag={lag} sessions, only {n_ok}/{len(lag_ok)} signals "
+            "have an execution session inside the sample; the rest are clamped onto "
+            "the final session"
+        )
+    else:
+        log.debug(f"execution_dates: lag={lag} sessions, {n_ok}/{len(lag_ok)} within sample")
     return out
 
 
