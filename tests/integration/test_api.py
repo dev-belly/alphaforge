@@ -39,6 +39,30 @@ def test_health(client):
     assert r.json()["status"] == "ok"
 
 
+def test_run_request_seed_reaches_pipeline(client, monkeypatch):
+    import alphaforge_api.main as api
+
+    from alphaforge.pipeline import ResearchState
+
+    seen = []
+
+    class FakePipeline:
+        def __init__(self, config):
+            seen.append(config.get("project.seed"))
+
+        def run(self, **kwargs):
+            return ResearchState()
+
+    monkeypatch.setattr(api, "ResearchPipeline", FakePipeline)
+    monkeypatch.setitem(api._STATE, "state", None)
+    monkeypatch.setitem(api._STATE, "ran_at", None)
+
+    for payload in ({}, {"seed": 7}):
+        response = client.post("/research/run", json=payload)
+        assert response.status_code == 200, response.text
+    assert seen == [42, 7]
+
+
 def test_quality_query_exposes_cached_etl_report(client, monkeypatch):
     from alphaforge_api.main import _STATE
 

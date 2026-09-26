@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 from alphaforge.pipeline import ResearchPipeline
-from alphaforge.utils.config import Config, load_yaml, set_global_seed
+from alphaforge.utils.config import Config, load_yaml
 from make_assets import render_assets
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,7 +34,6 @@ def main() -> None:
     if cfg.get("data.provider") != "sample":
         raise ValueError("Public examples must use the bundled synthetic sample")
     seed = int(cfg.get("project.seed"))
-    set_global_seed(seed)
     OUT.mkdir(parents=True, exist_ok=True)
     state = ResearchPipeline(cfg).run(report_dir=str(OUT))
     bt = state.backtest

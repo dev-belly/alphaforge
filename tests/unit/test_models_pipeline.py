@@ -120,6 +120,13 @@ def test_from_config_reads_the_walk_forward_block(dataset: AlphaDataset) -> None
     assert got.model_config.params == {"alpha": 1.0}
 
 
+def test_model_seed_inherits_project_seed_unless_explicit(dataset: AlphaDataset) -> None:
+    cfg = {"project": {"seed": 7}, "model": {"type": "random_forest"}}
+    assert AlphaModelPipeline.from_config(dataset, cfg).model_config.seed == 7
+    cfg["model"]["seed"] = 11
+    assert AlphaModelPipeline.from_config(dataset, cfg).model_config.seed == 11
+
+
 def test_from_config_falls_back_to_the_horizon_for_purge_and_embargo(
     dataset: AlphaDataset,
 ) -> None:

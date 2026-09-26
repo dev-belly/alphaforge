@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import alphaforge.pipeline as pipeline_module
 from alphaforge.pipeline import (
     ResearchPipeline,
     ResearchState,
@@ -119,6 +120,39 @@ def test_no_config_loads_the_defaults() -> None:
     got = ResearchPipeline(None)
     assert isinstance(got.config, Config)
     assert got.config.get("data.provider")
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected_seed"),
+    [("sample", 7), ("synthetic", 7), ("local", None)],
+)
+def test_run_routes_seed_to_synthetic_provider_and_global_rng(
+    monkeypatch: pytest.MonkeyPatch, provider: str, expected_seed: int | None
+) -> None:
+    class StopAtDataError(Exception):
+        pass
+
+    calls: dict[str, object] = {}
+
+    class FakeDataPipeline:
+        def __init__(self, provider: str, **kwargs: object) -> None:
+            calls["provider"] = provider
+            calls["kwargs"] = kwargs
+
+        def run(self, **kwargs: object) -> None:
+            raise StopAtDataError
+
+    monkeypatch.setattr(pipeline_module, "DataPipeline", FakeDataPipeline)
+    monkeypatch.setattr(pipeline_module, "set_global_seed", lambda seed: calls.update(seed=seed))
+    with pytest.raises(StopAtDataError):
+        ResearchPipeline({"project": {"seed": 7}, "data": {"provider": provider}}).run()
+
+    assert calls["seed"] == 7
+    assert calls["provider"] == provider
+    if expected_seed is None:
+        assert calls["kwargs"] == {}
+    else:
+        assert calls["kwargs"]["spec"].seed == expected_seed
 
 
 def test_a_dict_is_copied_at_the_top_level() -> None:

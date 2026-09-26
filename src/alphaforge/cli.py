@@ -12,7 +12,7 @@ import argparse
 import sys
 from typing import Any
 
-from alphaforge.utils.config import Config, set_global_seed
+from alphaforge.utils.config import Config
 from alphaforge.utils.logging import configure_logging, get_logger
 
 log = get_logger("cli")
@@ -40,7 +40,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--report-dir", default="research/reports", help="Where to write the HTML report."
     )
     p.add_argument("--persist", action="store_true", help="Persist the processed dataset to disk.")
-    p.add_argument("--seed", type=int, default=42, help="Global random seed.")
+    p.add_argument("--seed", type=int, default=None, help="Run seed (default: project.seed).")
     p.add_argument("--verbose", action="store_true", help="DEBUG logging.")
     p.add_argument(
         "--print-briefing",
@@ -73,9 +73,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.serve_api:
         return _serve_api(args.api_host, args.api_port)
 
-    set_global_seed(args.seed)
-
     overrides: dict[str, Any] = {}
+    if args.seed is not None:
+        overrides.setdefault("project", {})["seed"] = args.seed
     if args.provider:
         overrides.setdefault("data", {})["provider"] = args.provider
     if args.model:
@@ -84,7 +84,6 @@ def main(argv: list[str] | None = None) -> int:
     config = (
         Config.load(args.config, overrides) if args.config else Config.load(overrides=overrides)
     )
-
     from alphaforge.pipeline import ResearchPipeline
 
     symbols = (

@@ -26,7 +26,7 @@ from __future__ import annotations
 import argparse
 
 from alphaforge.pipeline import ResearchPipeline
-from alphaforge.utils.config import Config, set_global_seed
+from alphaforge.utils.config import Config
 from alphaforge.utils.logging import configure_logging, get_logger
 
 log = get_logger("scripts.real_backtest")
@@ -50,17 +50,17 @@ def main() -> int:
     )
     ap.add_argument("--report-dir", default="research/reports/real")
     ap.add_argument("--persist", action="store_true")
-    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--seed", type=int, default=None, help="Run seed (default: project.seed).")
     args = ap.parse_args()
 
     configure_logging(level="INFO")
-    set_global_seed(args.seed)
-
     overrides = {
         "data": {"provider": args.provider, "universe": args.universe},
         # Price-only vendor -> keep the risk model on price-derived style factors.
         "risk": {"style_factors": PRICE_BASED_STYLE_FACTORS},
     }
+    if args.seed is not None:
+        overrides["project"] = {"seed": args.seed}
     if args.provider == "eastmoney":
         # Make the report title explicit about the data source.
         overrides["reporting"] = {"title": "AlphaForge Real-Data Report (EastMoney A-share)"}

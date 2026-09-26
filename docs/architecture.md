@@ -89,7 +89,9 @@ briefing; if an LLM is configured it only prose-ifies an already-grounded brief.
 
 ## Reproducibility contract
 
-`set_global_seed` seeds Python and NumPy randomness. Compare numerical outputs
-with matching data, configuration and dependency versions. Reports include a
-timestamp. The default copilot applies fixed rules to tool outputs; optional LLM
-prose requires separate review. See [the sample manifest](sample-run.md).
+`ResearchPipeline.run` applies `project.seed` to Python and NumPy global
+randomness and passes it to the synthetic provider and models (unless
+`model.seed` is explicitly set). Compare numerical outputs with matching data,
+configuration and dependency versions. Reports include a timestamp. The default
+copilot applies fixed rules to tool outputs; optional LLM prose requires separate
+review. See [the sample manifest](sample-run.md).

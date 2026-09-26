@@ -26,6 +26,16 @@ def test_benchmark_is_deterministic() -> None:
     pd.testing.assert_series_equal(a, b)
 
 
+def test_sample_seed_changes_generated_prices() -> None:
+    def prices(seed: int) -> pd.DataFrame:
+        spec = SampleSpec(n_symbols=8, start="2024-01-01", end="2024-02-29", seed=seed)
+        return SampleDataProvider(spec).fetch_prices()
+
+    baseline = prices(42)
+    pd.testing.assert_frame_equal(baseline, prices(42))
+    assert not baseline["adj_close"].equals(prices(7)["adj_close"])
+
+
 def test_benchmark_returns_are_finite_and_sane() -> None:
     bench = _provider().benchmark_prices()
     rets = bench.pct_change(fill_method=None).dropna()

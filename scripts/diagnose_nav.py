@@ -15,11 +15,10 @@ import pandas as pd
 warnings.simplefilter("error", RuntimeWarning)
 
 from alphaforge.pipeline import ResearchPipeline  # noqa: E402
-from alphaforge.utils.config import Config, set_global_seed  # noqa: E402
+from alphaforge.utils.config import Config  # noqa: E402
 
 
 def main() -> int:
-    set_global_seed(42)
     cfg = Config.load(overrides={"portfolio": {"method": "mean_variance"}})
     try:
         state = ResearchPipeline(cfg).run(

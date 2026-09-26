@@ -12,6 +12,7 @@ run stays covered by the slow integration test.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -69,7 +70,7 @@ def _patch_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
 # --------------------------------------------------------------------------
 def test_parser_defaults_match_the_documented_contract() -> None:
     args = _build_parser().parse_args([])
-    assert args.seed == 42
+    assert args.seed is None
     assert args.report_dir == "research/reports"
     assert args.api_port == 8000
     assert args.api_host == "127.0.0.1"
@@ -155,6 +156,18 @@ def test_main_leaves_symbols_none_when_not_supplied(monkeypatch: pytest.MonkeyPa
     _patch_pipeline(monkeypatch)
     assert main([]) == 0
     assert _FakePipeline.calls[0]["symbols"] is None
+
+
+def test_seed_flag_overrides_config_seed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _patch_pipeline(monkeypatch)
+    custom = tmp_path / "custom.yaml"
+    custom.write_text("project:\n  seed: 13\n")
+
+    assert main(["--config", str(custom)]) == 0
+    assert _FakePipeline.configs[-1].get("project.seed") == 13
+
+    assert main(["--config", str(custom), "--seed", "7"]) == 0
+    assert _FakePipeline.configs[-1].get("project.seed") == 7
 
 
 def test_main_prints_briefing_only_when_asked(

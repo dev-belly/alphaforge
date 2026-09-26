@@ -29,7 +29,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 import pandas as pd  # noqa: E402
 
 from alphaforge.pipeline import ResearchPipeline  # noqa: E402
-from alphaforge.utils.config import Config, set_global_seed  # noqa: E402
+from alphaforge.utils.config import Config  # noqa: E402
 from alphaforge.utils.logging import configure_logging, get_logger  # noqa: E402
 
 configure_logging()
@@ -156,8 +156,6 @@ def main(argv: list[str] | None = None) -> int:
         overrides.setdefault("portfolio", {})["method"] = args.method
 
     cfg = Config.load(args.config, overrides=overrides)
-    set_global_seed(int(cfg.get("project.seed", 42) or 42))
-
     log.info(f"Running real-data research with provider={cfg.get('data.provider')}")
     state = ResearchPipeline(cfg).run(
         start=args.start,

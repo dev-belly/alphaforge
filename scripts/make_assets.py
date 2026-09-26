@@ -2,7 +2,7 @@
 
 Headless (matplotlib Agg). Runs the *shipped synthetic sample* end-to-end and
 renders a few canonical charts into ``assets/`` so the repo has real visuals
-without needing a browser screenshot. Deterministic given the global seed.
+without needing a browser screenshot. Deterministic given the project seed.
 
     python scripts/make_assets.py
 """
@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from alphaforge.pipeline import ResearchPipeline
-from alphaforge.utils.config import Config, load_yaml, set_global_seed
+from alphaforge.utils.config import Config, load_yaml
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 ASSETS.mkdir(parents=True, exist_ok=True)
@@ -99,5 +99,4 @@ if __name__ == "__main__":
     config = Config(raw=load_yaml(ASSETS.parent / "configs/default.yaml"))
     if config.get("data.provider") != "sample":
         raise ValueError("README figures must use the synthetic sample provider")
-    set_global_seed(int(config.get("project.seed")))
     render_assets(ResearchPipeline(config).run())

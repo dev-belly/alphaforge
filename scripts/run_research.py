@@ -18,7 +18,7 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
 from alphaforge.pipeline import ResearchPipeline  # noqa: E402
-from alphaforge.utils.config import Config, set_global_seed  # noqa: E402
+from alphaforge.utils.config import Config  # noqa: E402
 
 
 def main() -> int:
@@ -28,11 +28,12 @@ def main() -> int:
     p.add_argument("--model", default=None)
     p.add_argument("--method", default=None, help="Portfolio method override.")
     p.add_argument("--report-dir", default="research/reports")
-    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--seed", type=int, default=None, help="Run seed (default: project.seed).")
     args = p.parse_args()
 
-    set_global_seed(args.seed)
     overrides = {}
+    if args.seed is not None:
+        overrides.setdefault("project", {})["seed"] = args.seed
     if args.method:
         overrides.setdefault("portfolio", {})["method"] = args.method
     cfg = Config.load(overrides=overrides)

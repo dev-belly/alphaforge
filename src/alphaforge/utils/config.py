@@ -117,7 +117,7 @@ def _coerce(value: str) -> Any:
 
 
 def set_global_seed(seed: int = 42) -> None:
-    """Seed every RNG used by the platform for reproducible research runs."""
+    """Seed Python and NumPy global generators; callers seed independent RNGs."""
     random.seed(seed)
     np.random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)

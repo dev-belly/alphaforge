@@ -30,7 +30,7 @@ from alphaforge.agents.tools import CATALOG, run_tools
 from alphaforge.backtest.engine import BacktestConfig, BacktestEngine
 from alphaforge.pipeline import ResearchPipeline, ResearchState
 from alphaforge.portfolio.constructor import PortfolioConstructor
-from alphaforge.utils.config import Config, set_global_seed
+from alphaforge.utils.config import Config
 from alphaforge.utils.logging import configure_logging, get_logger
 
 log = get_logger("api")
@@ -65,7 +65,7 @@ class ResearchRequest(BaseModel):
     report_dir: str = Field(
         "research/reports", description="Directory the HTML report is written to."
     )
-    seed: int = Field(42, description="Global RNG seed for reproducibility.")
+    seed: int | None = Field(None, description="Run seed; defaults to project.seed.")
     persist: bool = Field(False, description="Persist the processed dataset to disk.")
 
 
@@ -236,8 +236,9 @@ def get_config() -> dict:
 @app.post("/research/run", response_class=JSONResponse)
 def run_research(req: ResearchRequest) -> dict:
     """Run the full pipeline and cache the result for the other GET routes."""
-    set_global_seed(req.seed)
     overrides: dict[str, Any] = {}
+    if req.seed is not None:
+        overrides.setdefault("project", {})["seed"] = req.seed
     if req.provider:
         overrides.setdefault("data", {})["provider"] = req.provider
     if req.portfolio_method:
@@ -245,7 +246,6 @@ def run_research(req: ResearchRequest) -> dict:
     if req.target_volatility is not None:
         overrides.setdefault("portfolio", {})["target_volatility"] = req.target_volatility
     config = Config.load(overrides=overrides)
-
     state = ResearchPipeline(config).run(
         start=req.start,
         end=req.end,

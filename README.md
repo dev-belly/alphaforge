@@ -94,6 +94,9 @@ Run the full pipeline from the CLI:
 alphaforge --start 2016-01-01 --end 2024-12-31 --report-dir research/reports
 ```
 
+The run seed comes from `project.seed` in the configuration (42 by default).
+Use `--seed 7` to override it for the synthetic data and seeded models.
+
 Or programmatically:
 
 ```python
@@ -249,10 +252,12 @@ the call fails. See [`docs/modules/ai_agent.md`](docs/modules/ai_agent.md).
 
 ## Reproducibility
 
-`alphaforge.utils.config.set_global_seed` seeds every RNG. The same config + seed
-is intended to reproduce numeric results with matching data and dependencies;
-the report includes a generation timestamp. The copilot's findings are rule-driven, so a reviewer can
-trace every sentence to a metric.
+The pipeline applies `project.seed` to Python and NumPy global randomness, the
+synthetic provider and models (unless `model.seed` is explicitly set). CLI
+`--seed`, API `seed` and the dashboard seed control override `project.seed`.
+The same config + seed is intended to reproduce numeric results with matching
+data and dependencies; the report includes a generation timestamp. The copilot's
+findings are rule-driven, so a reviewer can trace every sentence to a metric.
 
 ## Testing & CI
 

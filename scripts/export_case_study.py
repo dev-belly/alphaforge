@@ -22,7 +22,7 @@ from alphaforge.risk.factor_model import (
     factor_risk_decomposition,
     portfolio_risk,
 )
-from alphaforge.utils.config import Config, set_global_seed
+from alphaforge.utils.config import Config
 
 OUT = Path("research/case_study_data.json")
 
@@ -46,7 +46,6 @@ def _series(s: pd.Series | None, n: int | None = None) -> dict:
 
 
 def main() -> int:
-    set_global_seed(42)
     cfg = Config.load()
     state = ResearchPipeline(cfg).run(
         start="2016-01-01", end="2024-12-31", model_type="ridge", report_dir="research/reports"
@@ -56,7 +55,7 @@ def main() -> int:
         "meta": {
             "start": "2016-01-01",
             "end": "2024-12-31",
-            "seed": 42,
+            "seed": cfg.get("project.seed", 42),
             "provider": cfg.raw.get("data", {}).get("provider"),
             "model_type": "ridge",
             "portfolio_method": cfg.raw.get("portfolio", {}).get("method"),

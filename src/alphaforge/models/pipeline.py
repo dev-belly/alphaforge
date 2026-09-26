@@ -53,7 +53,9 @@ class AlphaModelPipeline:
 
     @classmethod
     def from_config(cls, dataset: AlphaDataset, cfg: dict) -> AlphaModelPipeline:
-        mcfg = ModelConfig.from_dict(cfg.get("model", {}))
+        model_cfg = dict(cfg.get("model", {}) or {})
+        model_cfg.setdefault("seed", cfg.get("project", {}).get("seed", 42))
+        mcfg = ModelConfig.from_dict(model_cfg)
         wcfg_dict = dict((cfg.get("model", {}) or {}).get("walk_forward", {}) or {})
         horizon = int(dataset.metadata.get("horizon", 21))
         wcfg = WalkForwardConfig(

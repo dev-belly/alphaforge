@@ -20,7 +20,7 @@ import pandas as pd
 import streamlit as st
 
 from alphaforge.pipeline import ResearchPipeline
-from alphaforge.utils.config import Config, set_global_seed
+from alphaforge.utils.config import Config
 
 st.set_page_config(
     page_title="AlphaForge Dashboard", layout="wide", initial_sidebar_state="expanded"
@@ -72,8 +72,10 @@ def main() -> None:
         return
 
     if run or "state" not in st.session_state:
-        set_global_seed(int(seed))
-        overrides = {"portfolio": {"method": method, "target_volatility": float(vol)}}
+        overrides = {
+            "project": {"seed": int(seed)},
+            "portfolio": {"method": method, "target_volatility": float(vol)},
+        }
         cfg = Config.load(overrides=overrides)
         with st.spinner(
             "Running data → factors → ML → risk → portfolio → backtest → attribution …"
@@ -88,6 +90,7 @@ def main() -> None:
             "model": model,
             "method": method,
             "vol": vol,
+            "seed": int(seed),
         }
 
     state = st.session_state["state"]
@@ -114,7 +117,8 @@ def main() -> None:
 
     st.caption(
         f"Run params: model={params.get('model')} · method={params.get('method')} · "
-        f"target vol={params.get('vol')} · window {params.get('start')} → {params.get('end')}"
+        f"target vol={params.get('vol')} · seed={params.get('seed')} · "
+        f"window {params.get('start')} → {params.get('end')}"
     )
 
     # ---- equity curve ------------------------------------------------------

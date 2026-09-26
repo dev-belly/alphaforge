@@ -24,6 +24,7 @@ import pandas as pd
 from alphaforge.attribution import brinson_attribution, factor_attribution
 from alphaforge.backtest.engine import BacktestConfig, BacktestEngine
 from alphaforge.data.pipeline import DataPipeline
+from alphaforge.data.providers.sample import SampleSpec
 from alphaforge.factors import FactorContext
 from alphaforge.features.fundamentals import FundamentalView
 from alphaforge.features.panel import build_panel
@@ -38,7 +39,7 @@ from alphaforge.risk.regime import (
     regime_statistics,
 )
 from alphaforge.risk.stress import run_scenarios
-from alphaforge.utils.config import Config
+from alphaforge.utils.config import Config, set_global_seed
 from alphaforge.utils.logging import Timer, get_logger
 
 log = get_logger("pipeline")
@@ -106,6 +107,8 @@ class ResearchPipeline:
         symbols: Sequence[str] | None = None,
     ) -> ResearchState:
         cfg = self.config.raw
+        seed = int(cfg.get("project", {}).get("seed", 42))
+        set_global_seed(seed)
         start = start or cfg.get("data", {}).get("start_date")
         end = end or cfg.get("data", {}).get("end_date")
         model_type = model_type or cfg.get("model", {}).get("type", "ridge")
@@ -114,8 +117,14 @@ class ResearchPipeline:
         d = state.diagnostics
 
         # -- 1. data ----------------------------------------------------
+        provider_name = cfg.get("data", {}).get("provider", "sample")
+        provider_kwargs: dict[str, Any] = (
+            {"spec": SampleSpec(seed=seed)}
+            if str(provider_name or "").strip().lower() in {"", "sample", "synthetic"}
+            else {}
+        )
         with Timer("pipeline.etl", log):
-            res = DataPipeline(provider=cfg.get("data", {}).get("provider", "sample")).run(
+            res = DataPipeline(provider=provider_name, **provider_kwargs).run(
                 start=start,
                 end=end,
                 index_id=cfg.get("data", {}).get("universe", "SP500_SAMPLE"),
