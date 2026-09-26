@@ -72,6 +72,12 @@ class ReportInputs:
 
 def _fmt(value: Any) -> str:
     if isinstance(value, float):
+        if not math.isfinite(value):
+            # NaN and inf mean "not measured", exactly like None. Formatting them
+            # leaks a data-processing artefact onto the page: the shipped sample
+            # report had ten cells reading "nan", including a whole constant
+            # factor's IC row and the specific-risk row's exposure.
+            return "-"
         if abs(value) < 1e-6:
             return "0.0000"
         if abs(value) >= 1e6 or abs(value) < 1e-3:
@@ -91,9 +97,12 @@ def _finite(v: Any) -> bool:
 
 def _pct(value: Any) -> str:
     try:
-        return f"{float(value) * 100:.2f}%"
+        number = float(value)
     except (TypeError, ValueError):
         return _fmt(value)
+    if not math.isfinite(number):
+        return "-"
+    return f"{number * 100:.2f}%"
 
 
 def _table(df: pd.DataFrame, floatfmt: str = "{:.4f}") -> str:
@@ -107,7 +116,7 @@ def _table(df: pd.DataFrame, floatfmt: str = "{:.4f}") -> str:
         for c in cols:
             v = row[c]
             if isinstance(v, float):
-                txt = floatfmt.format(v)
+                txt = floatfmt.format(v) if math.isfinite(v) else "-"
             else:
                 txt = html.escape(str(v))
             cells.append(f"<td>{txt}</td>")

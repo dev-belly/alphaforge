@@ -438,7 +438,18 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   Pinned along the way: `initial_capital` is the *pre*-first-session NAV so the
   benchmark's first return is already in the line, a gap in the benchmark stays
   a gap without truncating the curve (`Series.cumprod` skips NaN), a failing
-  chart still closes its figure, and every renderer returns a real PNG.
+  chart still closes its figure, and every renderer returns a real PNG. The
+  report renderer itself is locked too (100% on `report.py`), and the failure it
+  owns is about what the page *says*. A missing number used to read as a
+  measurement: `None` was already rendered as "-", but `NaN` - which is what
+  every unmeasured metric actually is, e.g. `calmar` with no drawdown or the IC
+  statistics of a constant factor - was formatted straight through. The shipped
+  sample report had **ten** cells reading "nan", including a whole constant
+  factor's IC row and the specific-risk row's exposure. `_fmt`, `_pct` and
+  `_table` now render anything non-finite as "-", consistent with `None` and
+  with `_finite`, which the module already used as its "is this usable" test;
+  the sample report was regenerated and now has none. String cells and column
+  headers stay escaped, because a factor or symbol name is data, not markup.
 * `agents` — the copilot's rule layer is locked offline (100% on `copilot.py`).
   Its whole claim is that it does not fabricate - "every sentence is grounded in
   a number it actually received" - which makes the failure that matters a
