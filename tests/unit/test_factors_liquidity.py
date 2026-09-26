@@ -21,11 +21,12 @@ all follow it. The other four do not, and they contradict each other:
 and ``amihud_illiquidity`` is +1 while ``zero_trading_days`` is -1 although both
 rise with illiquidity.
 
-``test_the_liquidity_directions_agree_with_each_other`` records that as a
-**strict xfail**: the expectation is written down, the failure is documented,
-and fixing the directions turns it into an XPASS which fails the suite until the
-marker is removed. No direction is changed here - which of the two readings the
-author intended for each factor is a strategy decision, not a bug fix.
+This was first recorded as a **strict xfail** rather than fixed, because which
+reading the author intended for each factor is a strategy decision. It has since
+been resolved: the four outliers were flipped, so all six now follow the
+illiquidity premium and ``test_the_liquidity_directions_agree_with_each_other``
+asserts it directly. That was a deliberate change to what the model is trained
+on, not a cleanup - the sample report's numbers move as a result.
 
 Everything is deterministic: no network, fixed seeds, no shared state.
 """
@@ -242,23 +243,43 @@ def test_liquidity_measures_never_see_the_future(factor) -> None:
 # ----------------------------------------------------------------------
 # The direction inconsistency
 # ----------------------------------------------------------------------
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "adv_21d/log_adv_21d/dollar_volume_ratio are +1 while turnover_21d is -1 "
-        "although all four rise with liquidity, and zero_trading_days is -1 while "
-        "amihud_illiquidity is +1 although both rise with illiquidity. "
-        "FactorPreprocessor flips the sign on direction == -1, so the model is "
-        "being fed four inverted liquidity signals. Remove this marker once the "
-        "directions agree."
-    ),
-)
 def test_the_liquidity_directions_agree_with_each_other() -> None:
+    """The sign the model is trained on, not just the metadata.
+
+    ``FactorPreprocessor`` flips the factor when ``direction == -1``, so a
+    disagreeing direction is an inverted signal, not a mislabel. This used to be
+    a strict xfail: adv_21d / log_adv_21d / dollar_volume_ratio were +1 while
+    turnover_21d was -1 although all four rise with liquidity, and
+    zero_trading_days was -1 while amihud_illiquidity was +1 although both rise
+    with illiquidity. Four of the six were feeding the model backwards.
+    """
     liquid = {REGISTRY.spec(n).direction for n in RISES_WITH_LIQUIDITY}
     illiquid = {REGISTRY.spec(n).direction for n in RISES_WITH_ILLIQUIDITY}
-    assert len(liquid) == 1, f"measures of liquidity disagree: {sorted(liquid)}"
-    assert len(illiquid) == 1, f"measures of illiquidity disagree: {sorted(illiquid)}"
+    assert liquid == {-1}, f"measures of liquidity disagree: {sorted(liquid)}"
+    assert illiquid == {1}, f"measures of illiquidity disagree: {sorted(illiquid)}"
     assert liquid != illiquid, "liquidity and illiquidity cannot point the same way"
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("adv_21d", -1),
+        ("log_adv_21d", -1),
+        ("dollar_volume_ratio", -1),
+        ("turnover_21d", -1),
+        ("amihud_illiquidity", 1),
+        ("zero_trading_days", 1),
+    ],
+)
+def test_the_documented_direction_of_each_liquidity_factor(name: str, expected: int) -> None:
+    assert REGISTRY.spec(name).direction == expected
+
+
+def test_the_illiquidity_premium_is_what_the_signs_encode() -> None:
+    """Sanity: the two groups must point opposite ways for the premium to exist."""
+    liquid = {REGISTRY.spec(n).direction for n in RISES_WITH_LIQUIDITY}
+    illiquid = {REGISTRY.spec(n).direction for n in RISES_WITH_ILLIQUIDITY}
+    assert liquid == {-illiquid.pop()}
 
 
 def test_the_illiquidity_premium_is_the_named_framing() -> None:

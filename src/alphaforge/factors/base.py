@@ -40,6 +40,11 @@ class FactorSpec:
     data_requirement: str = "price"
 
     def __post_init__(self) -> None:
+        # The name is the registry key, so an empty one is not a cosmetic
+        # problem: it registers under "" and then shows up as a nameless row in
+        # the factor table. The other two fields were already validated.
+        if not self.name or not str(self.name).strip():
+            raise ValueError("FactorSpec.name must be a non-empty string")
         if self.category not in CATEGORIES:
             raise ValueError(f"Unknown category {self.category!r}; expected one of {CATEGORIES}")
         if self.direction not in (1, -1):

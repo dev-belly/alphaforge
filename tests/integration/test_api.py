@@ -53,10 +53,18 @@ def test_quality_query_exposes_cached_etl_report(client, monkeypatch):
 
 
 @pytest.mark.slow
-def test_run_then_serve(client):
+def test_run_then_serve(client, tmp_path):
+    # A test must never write to a tracked path. This used to point at
+    # ``research/reports``, so every full run of the suite overwrote the
+    # published sample report and left the working tree dirty - the only visible
+    # symptom was a changed "Generated ..." timestamp.
     r = client.post(
         "/research/run",
-        json={"start": "2019-01-01", "end": "2024-12-31", "report_dir": "research/reports"},
+        json={
+            "start": "2019-01-01",
+            "end": "2024-12-31",
+            "report_dir": str(tmp_path / "reports"),
+        },
     )
     assert r.status_code == 200
     body = r.json()

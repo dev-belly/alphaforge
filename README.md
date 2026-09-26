@@ -244,13 +244,29 @@ trace every sentence to a metric.
 slow suite runs the full pipeline + live API. `ruff` (lint + format) and `mypy`
 (0 findings) gate too. CI is green on Python 3.10 / 3.11 / 3.12; the full
 suite (incl. the slow pipeline + API run) is additionally verified locally on
-Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is ~86%
-(measured with `pytest-cov` in the Integration job), and **no module sits at 0%**.
+Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is 97% locally
+(measured with `pytest-cov` over the whole suite, slow tests included; the CI
+Integration job measures its own subset). Every module is above 85%, the lowest
+being `factors/base.py`; the remaining gaps are concentrated in the execution and
+optimiser paths, which the slow suite drives only along their happy path.
 Anything that cannot be exercised for real is exercised against fakes instead:
 
 * `yahoo` / `akshare` — parsing, column mapping and failure handling are tested
-  offline (100% on `vendors.py`) with fakes injected into `sys.modules`; only the
-  live HTTP path is unvalidated, because CI has no egress.
+  offline (100% on `vendors.py`) with fakes injected into `sys.modules`. The live
+  HTTP path has since been exercised by hand from a machine with egress, on
+  2026-09-26:
+  * **`eastmoney`** (the key-less A-share backend, so the `akshare` slot needs no
+    SDK) fetched real data - two symbols over nine sessions, all eleven canonical
+    columns, `600519` closing at 1505.05 on 2024-06-03, with `market_cap` NaN and
+    `industry` `Unknown` exactly as its docstring documents.
+  * the **failure** path was confirmed live rather than only against fakes: a
+    blocked request produced per-symbol warnings, an empty canonical frame, and
+    then `RuntimeError: Provider eastmoney returned an empty price panel` from
+    `DataPipeline` - the hard-failure contract, end to end.
+  * **`yahoo`** constructs, imports `yfinance` and reaches the network, but Yahoo
+    rate-limits this egress (`YFRateLimitError`), so no live rows were fetched
+    from it. Egress to the EastMoney host is also intermittent - a later
+    identical request failed - so this is a validated path, not a reliable one.
 * `cli` — argument parsing, symbol normalisation and the API-server branch are
   tested in-process with a fake pipeline (97%); the real end-to-end run is
   covered by the slow integration test.
@@ -332,20 +348,29 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   `except Exception` around each component was narrowed so a misspelt derived
   field surfaces instead of silently dropping a term from the composite.
   The liquidity / size family and the factor facade are locked too (100% on
-  `liquidity.py` and `library.py`). **One open question is recorded there rather
-  than fixed**: `direction` is not decoration - `FactorPreprocessor.process` does
-  `if spec.direction == -1: df = -df` before the panel reaches the model, so a
-  wrong direction feeds the model the *inverted* signal. Four liquidity factors
-  currently contradict each other: `adv_21d`, `log_adv_21d` and
-  `dollar_volume_ratio` are `+1` while `turnover_21d` is `-1` although all four
-  rise with liquidity, and `zero_trading_days` is `-1` while
-  `amihud_illiquidity` is `+1` although both rise with illiquidity. The module
-  docstring names the *illiquidity premium*, and `log_market_cap` / `log_price` /
-  `amihud_illiquidity` / `turnover_21d` follow it, so the other four look
-  inverted - but which reading was intended for each is a strategy decision, not
-  a bug fix. `test_the_liquidity_directions_agree_with_each_other` records it as
-  a **strict xfail**, so fixing the directions turns it into an XPASS that fails
-  the suite until the marker is removed.
+  `liquidity.py` and `library.py`). `direction` is not decoration -
+  `FactorPreprocessor.process` does `if spec.direction == -1: df = -df` before
+  the panel reaches the model. Four liquidity factors used to contradict each
+  other: `adv_21d`, `log_adv_21d` and `dollar_volume_ratio` were `+1` while
+  `turnover_21d` was `-1` although all four rise with liquidity, and
+  `zero_trading_days` was `-1` while `amihud_illiquidity` was `+1` although both
+  rise with illiquidity. The module docstring names the *illiquidity premium*,
+  and `log_market_cap` / `log_price` / `amihud_illiquidity` / `turnover_21d`
+  follow it, so the four outliers were inverted; they have now been flipped, and
+  `test_the_liquidity_directions_agree_with_each_other` asserts the whole family
+  agrees instead of recording an xfail.
+  What that does and does not change is worth stating precisely, because the
+  first reading of it was too strong. The sample backtest is **numerically
+  identical** afterwards (`total_return 0.04782803011096548`, CAGR +0.75%,
+  Sharpe 0.12): a linear model absorbs a feature sign flip by flipping its own
+  coefficient, and the portfolio's expected-returns bridge uses the **model's**
+  rank IC (`pipeline.py` passes `wf.evaluation.summary["rank_ic_mean"]`), not the
+  per-factor ICs, so it was never affected either. What the flip fixes is the
+  **reported per-factor diagnostics**: four factors' IC signs were inverted, so
+  the factor table said a working signal did not work and vice versa, and any
+  analyst screening factors on IC - or any sizing path that fed a factor's own
+  IC into `mu = shrunk_ic * z * sigma` - would have read them backwards. The IC
+  column in the sample report flips sign for exactly those four rows.
 * `portfolio` — the expected-returns bridge (Grinold `mu = shrunk_IC * z * sigma`)
   is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
   IC/volatility scaling, score de-meaning, outlier clipping, volatility-median
@@ -440,7 +465,18 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   Pinned along the way: `initial_capital` is the *pre*-first-session NAV so the
   benchmark's first return is already in the line, a gap in the benchmark stays
   a gap without truncating the curve (`Series.cumprod` skips NaN), a failing
-  chart still closes its figure, and every renderer returns a real PNG.
+  chart still closes its figure, and every renderer returns a real PNG. The
+  report renderer itself is locked too (100% on `report.py`), and the failure it
+  owns is about what the page *says*. A missing number used to read as a
+  measurement: `None` was already rendered as "-", but `NaN` - which is what
+  every unmeasured metric actually is, e.g. `calmar` with no drawdown or the IC
+  statistics of a constant factor - was formatted straight through. The shipped
+  sample report had **ten** cells reading "nan", including a whole constant
+  factor's IC row and the specific-risk row's exposure. `_fmt`, `_pct` and
+  `_table` now render anything non-finite as "-", consistent with `None` and
+  with `_finite`, which the module already used as its "is this usable" test;
+  the sample report was regenerated and now has none. String cells and column
+  headers stay escaped, because a factor or symbol name is data, not markup.
 * `agents` — the copilot's rule layer is locked offline (100% on `copilot.py`).
   Its whole claim is that it does not fabricate - "every sentence is grounded in
   a number it actually received" - which makes the failure that matters a
@@ -480,9 +516,22 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   consumed by the optimiser - and must resolve its alias list in order and leave
   `size` to the risk model, and `_decomp_table` must attach the covariance the
   chart needs and fall back to the factor covariance rather than to something
-  arbitrary. `ResearchPipeline.run` itself is left to the integration suite: it
-  is a 200-line linear orchestration with no arithmetic, and driving it from a
-  unit test would mean stubbing a dozen collaborators and asserting the stubs.
+  arbitrary. `ResearchPipeline.run` is left to the **integration** suite rather
+  than unit-tested: it is a 200-line linear orchestration with no arithmetic, and
+  driving it from a unit test would mean stubbing a dozen collaborators and
+  asserting the stubs. What the integration suite does cover is the part of
+  `run` that is actually a contract and that the happy-path smoke test cannot
+  see - its **degradation behaviour**. Seven optional stages (risk model,
+  regime, stress, Brinson, factor attribution, report rendering, copilot) are
+  each wrapped in `try/except` plus a warning, so a broken one costs you that
+  section and not the run. That is invisible on good data, so a silent change
+  from "warn and continue" to "raise" would have gone unnoticed: the tests break
+  exactly one collaborator at a time and assert the run still completes, the
+  right warning is logged, the corresponding state field stays unset, and the
+  **upstream outputs survive** - a broken report renderer must not cost you the
+  backtest. Two cases pin the cascade rather than the single stage: losing the
+  risk model must also skip stress (it depends on it), while losing the report
+  renderer must leave `risk_result` intact.
 * `backtest` — the performance statistics are locked offline (100% on
   `metrics.py`), and they are pure arithmetic on a return series, so every
   headline number in the report is only as good as they are. Sharpe, Sortino,
