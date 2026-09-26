@@ -74,6 +74,7 @@ def main() -> None:
     if run or "state" not in st.session_state:
         overrides = {
             "project": {"seed": int(seed)},
+            "model": {"type": model},
             "portfolio": {"method": method, "target_volatility": float(vol)},
         }
         cfg = Config.load(overrides=overrides)

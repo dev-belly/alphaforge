@@ -241,6 +241,8 @@ def run_research(req: ResearchRequest) -> dict:
         overrides.setdefault("project", {})["seed"] = req.seed
     if req.provider:
         overrides.setdefault("data", {})["provider"] = req.provider
+    if req.model:
+        overrides.setdefault("model", {})["type"] = req.model
     if req.portfolio_method:
         overrides.setdefault("portfolio", {})["method"] = req.portfolio_method
     if req.target_volatility is not None:

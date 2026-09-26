@@ -106,7 +106,9 @@ class ResearchPipeline:
         persist: bool = False,
         symbols: Sequence[str] | None = None,
     ) -> ResearchState:
-        cfg = self.config.raw
+        cfg = self.config.to_dict()
+        if model_type:
+            cfg.setdefault("model", {})["type"] = model_type
         seed = int(cfg.get("project", {}).get("seed", 42))
         set_global_seed(seed)
         start = start or cfg.get("data", {}).get("start_date")

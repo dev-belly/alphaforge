@@ -20,6 +20,7 @@ def test_full_pipeline_runs_and_reports(tmp_path, monkeypatch):
     set_global_seed(42)
     cfg = Config.load(
         overrides={
+            "model": {"type": "elasticnet"},
             "portfolio": {"method": "mean_variance", "assumed_ic": 0.031},
             "cost": {"commission_bps": 37.0},
         }
@@ -50,6 +51,9 @@ def test_full_pipeline_runs_and_reports(tmp_path, monkeypatch):
     assert state.factor_attr is not None, "factor attribution must run"
     assert state.report_path is not None
     assert state.diagnostics["assumed_ic"] == 0.031
+    assert state.config["model"]["type"] == "ridge"
+    assert state.model_eval.model_name == "ridge"
+    assert cfg.get("model.type") == "elasticnet"
     assert state.model_eval.summary["rank_ic_mean"] != 0.031
     assert captured["engine"].ic == 0.031
     assert captured["engine"].cost_model.config.commission_bps == 37.0
