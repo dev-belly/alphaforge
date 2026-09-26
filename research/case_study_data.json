@@ -144,7 +144,7 @@
     "best_rank_ic": 0.055488,
     "worst": "41",
     "median_abs_rank_ic": 0.025385,
-    "n_positive_ic": 27
+    "n_positive_ic": 30
   },
   "model": {
     "summary": {
@@ -281,7 +281,7 @@
       "n_rebalances": 60.0,
       "n_skipped_rebalances": 2.0,
       "n_trades": 1861.0,
-      "total_costs": 107984.774275,
+      "total_costs": 107984.774273,
       "cost_drag_ann": 0.001815,
       "avg_turnover": 0.236627,
       "avg_holdings": 23.794381,
@@ -291,9 +291,9 @@
     },
     "n_days": 1566,
     "n_trades": 1861,
-    "total_costs": 107984.774275,
+    "total_costs": 107984.774273,
     "initial_capital": 10000000.0,
-    "final_equity": 10309222.732284,
+    "final_equity": 10309222.7323,
     "avg_holdings": 23.794381
   },
   "brinson": {
@@ -478,27 +478,27 @@
     "stats": {
       "Bull/LowVol": {
         "n_days": 184,
-        "ann_return": 0.18159239540912697,
-        "ann_vol": 0.11295746106259552,
-        "sharpe": 1.5338269139010061
+        "ann_return": 0.18159239540588734,
+        "ann_vol": 0.11295746106225699,
+        "sharpe": 1.533826913881003
       },
       "Bull/HighVol": {
         "n_days": 429,
-        "ann_return": 0.3014084153521819,
-        "ann_vol": 0.14398760577557151,
-        "sharpe": 1.9023101111274483
+        "ann_return": 0.3014084153515513,
+        "ann_vol": 0.14398760577592798,
+        "sharpe": 1.9023101111197205
       },
       "Bear/LowVol": {
         "n_days": 392,
-        "ann_return": -0.09140611330526605,
-        "ann_vol": 0.08161860000273499,
-        "sharpe": -1.133487594749633
+        "ann_return": -0.09140611330272563,
+        "ann_vol": 0.08161860000240119,
+        "sharpe": -1.1334875947203567
       },
       "Bear/HighVol": {
         "n_days": 561,
-        "ann_return": -0.16098617937111848,
-        "ann_vol": 0.15717036332769127,
-        "sharpe": -1.0378005580609144
+        "ann_return": -0.16098617937110538,
+        "ann_vol": 0.15717036332769146,
+        "sharpe": -1.037800558060816
       }
     }
   },
