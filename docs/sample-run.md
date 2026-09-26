@@ -74,7 +74,7 @@ python scripts/publish_sample.py
 This command reads `configs/default.yaml` directly, without environment overrides,
 and refuses a non-synthetic provider. Review the manifest's Python and dependency
 versions to reproduce this environment. Exact source file hashes accompany the
-[source revision](https://github.com/dev-belly/alphaforge/commit/f4b396e5facafca52fd0e9b11feb529fe7cf65b4).
+[source revision](https://github.com/dev-belly/alphaforge/commit/7b535af4aae332a343f8579b323e211170cf3e7c).
 
 Output files go to `docs/sample/`; README figures go to `assets/`.
 For normal research runs with other providers or settings, use the [Quickstart](quickstart.md).
