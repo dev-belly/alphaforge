@@ -242,13 +242,29 @@ trace every sentence to a metric.
 slow suite runs the full pipeline + live API. `ruff` (lint + format) and `mypy`
 (0 findings) gate too. CI is green on Python 3.10 / 3.11 / 3.12; the full
 suite (incl. the slow pipeline + API run) is additionally verified locally on
-Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is ~86%
-(measured with `pytest-cov` in the Integration job), and **no module sits at 0%**.
+Python 3.13 (pandas 3.0 / NumPy 2.5). Full-suite line coverage is 97% locally
+(measured with `pytest-cov` over the whole suite, slow tests included; the CI
+Integration job measures its own subset). Every module is above 85%, the lowest
+being `factors/base.py`; the remaining gaps are concentrated in the execution and
+optimiser paths, which the slow suite drives only along their happy path.
 Anything that cannot be exercised for real is exercised against fakes instead:
 
 * `yahoo` / `akshare` — parsing, column mapping and failure handling are tested
-  offline (100% on `vendors.py`) with fakes injected into `sys.modules`; only the
-  live HTTP path is unvalidated, because CI has no egress.
+  offline (100% on `vendors.py`) with fakes injected into `sys.modules`. The live
+  HTTP path has since been exercised by hand from a machine with egress, on
+  2026-09-26:
+  * **`eastmoney`** (the key-less A-share backend, so the `akshare` slot needs no
+    SDK) fetched real data - two symbols over nine sessions, all eleven canonical
+    columns, `600519` closing at 1505.05 on 2024-06-03, with `market_cap` NaN and
+    `industry` `Unknown` exactly as its docstring documents.
+  * the **failure** path was confirmed live rather than only against fakes: a
+    blocked request produced per-symbol warnings, an empty canonical frame, and
+    then `RuntimeError: Provider eastmoney returned an empty price panel` from
+    `DataPipeline` - the hard-failure contract, end to end.
+  * **`yahoo`** constructs, imports `yfinance` and reaches the network, but Yahoo
+    rate-limits this egress (`YFRateLimitError`), so no live rows were fetched
+    from it. Egress to the EastMoney host is also intermittent - a later
+    identical request failed - so this is a validated path, not a reliable one.
 * `cli` — argument parsing, symbol normalisation and the API-server branch are
   tested in-process with a fake pipeline (97%); the real end-to-end run is
   covered by the slow integration test.
