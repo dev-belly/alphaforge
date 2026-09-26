@@ -52,8 +52,8 @@ _STATE: dict[str, Any] = {"state": None, "ran_at": None}
 # request / response models
 # ---------------------------------------------------------------------------
 class ResearchRequest(BaseModel):
-    start: str | None = Field(None, description="Window start date (YYYY-MM-DD).")
-    end: str | None = Field(None, description="Window end date (YYYY-MM-DD).")
+    start: str | None = Field(None, description="Data window start date (YYYY-MM-DD).")
+    end: str | None = Field(None, description="Data window end date (YYYY-MM-DD).")
     model: str | None = Field(None, description="ridge | elasticnet | random_forest | lightgbm")
     provider: str | None = Field(None, description="sample | local | yahoo | akshare | tushare")
     portfolio_method: str | None = Field(

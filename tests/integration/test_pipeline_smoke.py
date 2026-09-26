@@ -8,6 +8,7 @@ written. Marked ``slow`` so CI can run the fast unit suite separately.
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
 import alphaforge.pipeline as pipeline_module
@@ -50,6 +51,10 @@ def test_full_pipeline_runs_and_reports(tmp_path, monkeypatch):
     assert state.brinson is not None, "brinson attribution must run"
     assert state.factor_attr is not None, "factor attribution must run"
     assert state.report_path is not None
+    assert state.panel.dates[0] == pd.Timestamp("2016-01-01")
+    assert state.panel.dates[-1] == pd.Timestamp("2024-12-31")
+    assert state.config["data"]["start_date"] == "2016-01-01"
+    assert cfg.get("data.start_date") == "2015-01-01"
     assert state.diagnostics["assumed_ic"] == 0.031
     assert state.config["model"]["type"] == "ridge"
     assert state.model_eval.model_name == "ridge"

@@ -113,6 +113,12 @@ class ResearchPipeline:
         set_global_seed(seed)
         start = start or cfg.get("data", {}).get("start_date")
         end = end or cfg.get("data", {}).get("end_date")
+        if start is not None:
+            cfg.setdefault("data", {})["start_date"] = start
+        if end is not None:
+            cfg.setdefault("data", {})["end_date"] = end
+        if start is not None and end is not None and pd.Timestamp(start) > pd.Timestamp(end):
+            raise ValueError("Data window start must not be after end")
         model_type = model_type or cfg.get("model", {}).get("type", "ridge")
 
         state = ResearchState(config=cfg)
@@ -121,7 +127,13 @@ class ResearchPipeline:
         # -- 1. data ----------------------------------------------------
         provider_name = cfg.get("data", {}).get("provider", "sample")
         provider_kwargs: dict[str, Any] = (
-            {"spec": SampleSpec(seed=seed)}
+            {
+                "spec": SampleSpec(
+                    seed=seed,
+                    start=start or SampleSpec.start,
+                    end=end or SampleSpec.end,
+                )
+            }
             if str(provider_name or "").strip().lower() in {"", "sample", "synthetic"}
             else {}
         )

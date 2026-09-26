@@ -24,8 +24,8 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Institutional quant research & portfolio engineering pipeline",
     )
     p.add_argument("--config", default=None, help="Path to a YAML config (overrides defaults).")
-    p.add_argument("--start", default=None, help="Backtest/window start date (YYYY-MM-DD).")
-    p.add_argument("--end", default=None, help="Backtest/window end date (YYYY-MM-DD).")
+    p.add_argument("--start", default=None, help="Data window start date (YYYY-MM-DD).")
+    p.add_argument("--end", default=None, help="Data window end date (YYYY-MM-DD).")
     p.add_argument(
         "--model", default=None, help="Model type: ridge | elasticnet | random_forest | lightgbm."
     )

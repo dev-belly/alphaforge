@@ -18,6 +18,10 @@ Flags only override the knobs you change most often; everything else comes from
 seed, or `--print-briefing` to dump the copilot text. Without `--seed`, the CLI
 uses `project.seed` from the selected configuration.
 
+`--start` and `--end` select the data generation/fetch window. The backtest
+dates are separately configured by `backtest.start_date` and `backtest.end_date`;
+the model also needs enough earlier data for its walk-forward training folds.
+
 ## Python
 
 ```python

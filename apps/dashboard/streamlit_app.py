@@ -55,8 +55,8 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Configuration")
-        start = st.date_input("Window start", value=date(2018, 1, 1))
-        end = st.date_input("Window end", value=date(2024, 12, 31))
+        start = st.date_input("Data window start", value=date(2018, 1, 1))
+        end = st.date_input("Data window end", value=date(2024, 12, 31))
         model = st.selectbox("ML model", MODELS, index=0)
         method = st.selectbox("Portfolio method", METHODS, index=0)
         vol = st.slider("Target volatility (annual)", 0.05, 0.25, 0.12, 0.01)

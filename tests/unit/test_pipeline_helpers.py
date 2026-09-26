@@ -155,6 +155,35 @@ def test_run_routes_seed_to_synthetic_provider_and_global_rng(
         assert calls["kwargs"]["spec"].seed == expected_seed
 
 
+def test_run_passes_requested_window_to_synthetic_generator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StopAtDataError(Exception):
+        pass
+
+    seen: dict[str, object] = {}
+
+    class FakeDataPipeline:
+        def __init__(self, provider: str, **kwargs: object) -> None:
+            seen["spec"] = kwargs["spec"]
+
+        def run(self, **kwargs: object) -> None:
+            seen["window"] = (kwargs["start"], kwargs["end"])
+            raise StopAtDataError
+
+    monkeypatch.setattr(pipeline_module, "DataPipeline", FakeDataPipeline)
+    with pytest.raises(StopAtDataError):
+        ResearchPipeline({"data": {"provider": "sample"}}).run(start="2018-01-01", end="2024-06-30")
+
+    assert (seen["spec"].start, seen["spec"].end) == seen["window"]
+    assert seen["window"] == ("2018-01-01", "2024-06-30")
+
+
+def test_run_rejects_inverted_data_window() -> None:
+    with pytest.raises(ValueError, match="start must not be after end"):
+        ResearchPipeline({}).run(start="2024-12-31", end="2024-01-01")
+
+
 def test_a_dict_is_copied_at_the_top_level() -> None:
     """``dict(config)`` is a shallow copy: the mapping is new, nested dicts are shared.
 
