@@ -94,7 +94,10 @@ def monthly_heatmap(table: pd.DataFrame) -> str:
         return ""
     fig, ax = plt.subplots(figsize=(8, max(1.6, 0.4 * len(table))))
     data = table.to_numpy(dtype=float) * 100
-    vmax = float(np.nanmax(np.abs(data))) or 1.0
+    finite = np.abs(data[np.isfinite(data)])
+    vmax = float(finite.max()) if finite.size else 1.0
+    if vmax == 0.0:
+        vmax = 1.0
     im = ax.imshow(data, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="auto")
     ax.set_xticks(range(table.shape[1]))
     ax.set_xticklabels(table.columns, fontsize=7)

@@ -22,7 +22,10 @@ def rank_ic(pred: pd.Series, realised: pd.Series) -> float:
     df = pd.concat([pred, realised], axis=1).dropna()
     if len(df) < 5:
         return float("nan")
-    return float(df.iloc[:, 0].rank().corr(df.iloc[:, 1].rank()))
+    left, right = df.iloc[:, 0].rank(), df.iloc[:, 1].rank()
+    if left.nunique() < 2 or right.nunique() < 2:
+        return float("nan")
+    return float(left.corr(right))
 
 
 def _pivot_predictions(predictions: pd.DataFrame, value: str) -> pd.DataFrame:
@@ -83,12 +86,14 @@ def top_quantile_stats(predictions: pd.DataFrame, n_quantiles: int = 5) -> dict:
     if q.empty:
         return {}
     spread = q[f"q{n_quantiles}"] - q["q1"]
+    observed_spread = spread.dropna()
     return {
         "top_quantile_return": float(q[f"q{n_quantiles}"].mean()),
         "bottom_quantile_return": float(q["q1"].mean()),
         "long_short_spread": float(spread.mean()),
         "long_short_ir": float(spread.mean() / spread.std()) if spread.std() else float("nan"),
-        "hit_ratio": float((spread > 0).mean()),
+        # A date without enough names has no spread observation, not a loss.
+        "hit_ratio": float((observed_spread > 0).mean()) if len(observed_spread) else float("nan"),
     }
 
 

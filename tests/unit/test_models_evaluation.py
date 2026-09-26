@@ -278,6 +278,14 @@ def test_top_quantile_stats_is_empty_for_an_empty_input() -> None:
     assert top_quantile_stats(_predictions().head(0)) == {}
 
 
+def test_hit_ratio_excludes_dates_without_enough_names() -> None:
+    thick = _flat_predictions([(f"S{i}", float(i), float(i)) for i in range(10)])
+    thin = _flat_predictions([(f"T{i}", float(i), float(i)) for i in range(4)], date="2024-01-03")
+    got = top_quantile_stats(pd.concat([thick, thin], ignore_index=True))
+    assert got["hit_ratio"] == pytest.approx(1.0)
+    assert np.isnan(top_quantile_stats(thin)["hit_ratio"])
+
+
 def test_top_quantile_stats_is_nan_when_the_spread_never_moves() -> None:
     rows = [(f"S{i}", float(i), float(i)) for i in range(10)]
     got = top_quantile_stats(_flat_predictions(rows))
