@@ -1,9 +1,9 @@
 {
-  "generated_at_utc": "2026-09-26T15:33:29.335057+00:00",
+  "generated_at_utc": "2026-09-26T16:18:57.559086+00:00",
   "provider": "sample (synthetic)",
   "seed": 42,
   "command": "python scripts/publish_sample.py",
-  "source_revision": "7b535af4aae332a343f8579b323e211170cf3e7c",
+  "source_revision": "503d441822bcf133e40c612b569a11cea575666b",
   "python": "3.12.14",
   "dependencies": {
     "Jinja2": "3.1.6",
@@ -106,7 +106,7 @@
     "src/alphaforge/backtest/__init__.py": "b54462c263b9932f1a63c50eaeb6fb0b3a02da5b2e8b24d067a60f51e207a62e",
     "src/alphaforge/backtest/engine.py": "7b9ad9f712079242ddc6842a5978cae945b53c12ff7809fee99e162218324d43",
     "src/alphaforge/backtest/metrics.py": "1c72f8f18e2421aa380aadaf9b7430f2df7a321236267ba4bba491c0e532fceb",
-    "src/alphaforge/cli.py": "fddefa3d03762af13ab8c5d5b50d2ee395998fbf6a177f908744e560ce715407",
+    "src/alphaforge/cli.py": "dd952f39e7aa30fd236b726b4e7aa67581df917e52fd10f41044b630ea0efbd6",
     "src/alphaforge/data/__init__.py": "219e79f2328025da8e75d24b3c3e0b357794e974c79a1266b310413e4db9a254",
     "src/alphaforge/data/calendar.py": "fecb9bbfa29c58ab3c8d8c44a81dba55a6dc62eb390c20aff7894d12d7fbfc2d",
     "src/alphaforge/data/pipeline.py": "dfa127aab6083d22ccdb20b12a56777356858bd7cddedf244c16f5769d524486",
@@ -140,7 +140,7 @@
     "src/alphaforge/models/evaluation.py": "7a19c4823fb77fa0c62a6c7b76204e4d846b65ea1f2644e1fec464fc344dd0b8",
     "src/alphaforge/models/pipeline.py": "c9be00f362495a944a50b313ac203cf57c4c0a89a2993972fe69da10656ade22",
     "src/alphaforge/models/split.py": "60af1d5263ae47c61425753194dad61a39d97beabef81a4c78e2b3373d826dce",
-    "src/alphaforge/pipeline.py": "8d29988e68b59cc12c6c72fc074c20a51ba15be33c65f781abd143fa2d924266",
+    "src/alphaforge/pipeline.py": "57b7b859af6b0b304f3d5848c1bcc8a6d97418d03098b99701798ebb60a9a08c",
     "src/alphaforge/portfolio/__init__.py": "d4cbef2a233a56af06149e7201e60915feeac10dd6308035d3dee7218f44c438",
     "src/alphaforge/portfolio/constructor.py": "f5369f711ce0166edd10d071a67dae3c234b559e5d8c19d1711aa44b6c175b72",
     "src/alphaforge/portfolio/expected_returns.py": "e57a6625e186f8f07b2635319f406da429cd989cf9c6768a8416fe01ef1b85d6",
@@ -159,7 +159,7 @@
     "src/alphaforge/utils/math_utils.py": "58c60902bd48ffdcc3d399441ce6b4b96e67ed7fbf2765188a7069937fd18a88"
   },
   "artifact_sha256": {
-    "docs/sample/research_report.html": "e79f6788a3b8e9c2d0361c0fe09a1d654e1d1c96f66ffd3e7adda34660548f44",
+    "docs/sample/research_report.html": "ee0b60511da69041609912f3c2048eb71cd0627fcc9c3274cca7f718ce14fdd7",
     "docs/sample/daily_results.csv": "e19c2329e395ca9703ad7922cde69cb1ea1c486eb946dc40536775226407ce5b",
     "docs/sample/config.json": "aeb628a8459f39240aad1b1eee54b7815009c77ae60877ddf347f50e02a0bea0",
     "docs/sample/metrics.json": "2a8e0b605fc879259165aed7f8a8cbd56590d1369b0805156fe1876448c65aa6",
