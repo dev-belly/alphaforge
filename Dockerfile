@@ -19,4 +19,4 @@ RUN pip install --upgrade pip \
 
 EXPOSE 8000 8501
 
-CMD ["alphaforge", "serve-api", "--api-port", "8000"]
+CMD ["alphaforge", "--serve-api", "--api-host", "0.0.0.0", "--api-port", "8000"]

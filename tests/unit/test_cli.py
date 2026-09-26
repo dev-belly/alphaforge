@@ -12,6 +12,7 @@ run stays covered by the slow integration test.
 from __future__ import annotations
 
 import sys
+from types import ModuleType
 
 import pytest
 
@@ -71,6 +72,7 @@ def test_parser_defaults_match_the_documented_contract() -> None:
     assert args.seed == 42
     assert args.report_dir == "research/reports"
     assert args.api_port == 8000
+    assert args.api_host == "127.0.0.1"
     assert args.serve_api is False
     assert args.persist is False
     assert args.print_briefing is False
@@ -178,9 +180,9 @@ def test_serve_api_launches_uvicorn_without_running_the_pipeline(
         started["target"] = target
         started.update(kwargs)
 
-    # uvicorn is an optional (api-extra) dependency: skip rather than error.
-    uvicorn = pytest.importorskip("uvicorn")
-    monkeypatch.setattr(uvicorn, "run", _fake_run)
+    uvicorn = ModuleType("uvicorn")
+    uvicorn.run = _fake_run
+    monkeypatch.setitem(sys.modules, "uvicorn", uvicorn)
     rc = main(["--serve-api", "--api-port", "8123"])
 
     assert rc == 0
@@ -188,6 +190,17 @@ def test_serve_api_launches_uvicorn_without_running_the_pipeline(
     assert started["port"] == 8123
     assert started["host"] == "127.0.0.1"
     # Serving must not kick off a research run.
+    assert _FakePipeline.calls == []
+
+
+def test_serve_api_accepts_container_bind_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    started: dict[str, object] = {}
+    uvicorn = ModuleType("uvicorn")
+    uvicorn.run = lambda target, **kwargs: started.update(kwargs)
+    monkeypatch.setitem(sys.modules, "uvicorn", uvicorn)
+
+    assert main(["--serve-api", "--api-host", "0.0.0.0"]) == 0
+    assert started["host"] == "0.0.0.0"
     assert _FakePipeline.calls == []
 
 

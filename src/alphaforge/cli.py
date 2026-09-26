@@ -58,6 +58,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=8000,
         help="Port for --serve-api (default 8000).",
     )
+    p.add_argument(
+        "--api-host",
+        default="127.0.0.1",
+        help="Bind address for --serve-api (default 127.0.0.1; use 0.0.0.0 in a container).",
+    )
     return p
 
 
@@ -66,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(level="DEBUG" if args.verbose else "INFO")
 
     if args.serve_api:
-        return _serve_api(args.api_port)
+        return _serve_api(args.api_host, args.api_port)
 
     set_global_seed(args.seed)
 
@@ -105,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _serve_api(port: int) -> int:
+def _serve_api(host: str, port: int) -> int:
     """Launch the FastAPI research service via uvicorn."""
     import os
     import sys
@@ -121,8 +126,8 @@ def _serve_api(port: int) -> int:
     except ImportError:  # pragma: no cover
         log.error("uvicorn not installed - run `pip install -e '.[api]'` first.")
         return 1
-    log.info(f"Starting AlphaForge research API on http://127.0.0.1:{port}")
-    uvicorn.run("alphaforge_api.main:app", host="127.0.0.1", port=port, log_level="info")
+    log.info(f"Starting AlphaForge research API on http://{host}:{port}")
+    uvicorn.run("alphaforge_api.main:app", host=host, port=port, log_level="info")
     return 0
 
 

@@ -44,6 +44,15 @@ results across runs.
 | **Report** | Self-contained HTML (base64 figures) + a deterministic copilot briefing. |
 | **Apps** | FastAPI research service + Streamlit dashboard. |
 
+## Tech stack
+
+| Layer | Tools used here |
+|---|---|
+| Research and data | Python 3.10+, pandas, NumPy, SciPy, statsmodels, scikit-learn, LightGBM; Parquet and DuckDB |
+| Portfolio and reporting | CVXPY for constrained optimisation; Matplotlib / Plotly for figures and self-contained HTML reports |
+| Interfaces | CLI, FastAPI + Pydantic research API, Streamlit dashboard |
+| Quality and delivery | pytest, ruff, mypy, GitHub Actions; optional Docker Compose for the local API and dashboard |
+
 ## Architecture
 
 AlphaForge is a pipeline of pure-ish modules. The CLI, FastAPI service and
@@ -108,6 +117,13 @@ Launch the dashboard:
 ```bash
 streamlit run apps/dashboard/streamlit_app.py
 ```
+
+For the two-service local container stack, run `docker compose up --build`.
+The API is at `http://127.0.0.1:8000/health` and the dashboard at
+`http://127.0.0.1:8501`. The CLI binds to loopback by default; Compose passes
+`--api-host 0.0.0.0` **inside** the container and publishes both ports only on
+the host's loopback interface. The research API is a local demo without user
+authentication.
 
 ## Sample output
 

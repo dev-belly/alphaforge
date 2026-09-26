@@ -12,9 +12,9 @@
 services:
   api:
     build: .
-    command: alphaforge serve-api --api-port 8000
+    command: alphaforge --serve-api --api-host 0.0.0.0 --api-port 8000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./configs:/app/configs
       - ./data:/app/data
@@ -25,7 +25,7 @@ services:
     build: .
     command: streamlit run apps/dashboard/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     volumes:
       - ./configs:/app/configs
       - ./data:/app/data
