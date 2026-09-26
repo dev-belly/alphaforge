@@ -270,7 +270,9 @@ def rolling_metrics(
     )
     out["drawdown"] = drawdown_series(r)
     if benchmark is not None:
-        b = benchmark.reindex(r.index).fillna(0.0)
+        # A missing benchmark close is not a flat market session. Filling it
+        # with zero would fabricate observations and bias rolling beta.
+        b = benchmark.reindex(r.index)
         out["rolling_beta"] = r.rolling(window).cov(b) / b.rolling(window).var().replace(0, np.nan)
     return out
 

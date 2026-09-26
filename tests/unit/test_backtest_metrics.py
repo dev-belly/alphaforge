@@ -406,6 +406,18 @@ def test_rolling_beta_appears_only_with_a_benchmark():
     assert with_bench["rolling_beta"].iloc[-1] == pytest.approx(1.0, rel=1e-6)
 
 
+def test_rolling_beta_waits_for_real_benchmark_observations():
+    """A missing benchmark return must never be treated as a zero return."""
+    idx = pd.date_range("2021-01-01", periods=6, freq="B")
+    strategy = pd.Series([0.01, 0.02, -0.01, 0.03, 0.01, -0.02], index=idx)
+    benchmark = strategy.drop(idx[2])
+
+    got = rolling_metrics(strategy, window=3, benchmark=benchmark, periods_per_year=252)
+
+    assert got["rolling_beta"].iloc[:5].isna().all()
+    assert got["rolling_beta"].iloc[-1] == pytest.approx(1.0, rel=1e-12)
+
+
 # --------------------------------------------------------------------------
 # drawdown_table
 # --------------------------------------------------------------------------
