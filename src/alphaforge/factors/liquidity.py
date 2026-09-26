@@ -46,8 +46,11 @@ def log_price(ctx: FactorContext) -> pd.DataFrame:
     FactorSpec(
         name="adv_21d",
         category="liquidity",
-        direction=1,
-        description="21-day average dollar volume (ADV).",
+        direction=-1,
+        description=(
+            "21-day average dollar volume (ADV). Higher = more liquid, and the "
+            "illiquidity premium pays the *less* liquid names - hence -1."
+        ),
         data_requirement="price:volume",
     )
 )
@@ -59,8 +62,11 @@ def adv_21d(ctx: FactorContext) -> pd.DataFrame:
     FactorSpec(
         name="log_adv_21d",
         category="liquidity",
-        direction=1,
-        description="Log 21-day ADV - the standard liquidity control in cross-sectional studies.",
+        direction=-1,
+        description=(
+            "Log 21-day ADV - the standard liquidity control in cross-sectional "
+            "studies. Higher = more liquid, so -1 like adv_21d."
+        ),
         data_requirement="price:volume",
     )
 )
@@ -105,8 +111,11 @@ def amihud_illiquidity(ctx: FactorContext) -> pd.DataFrame:
     FactorSpec(
         name="dollar_volume_ratio",
         category="liquidity",
-        direction=1,
-        description="21-day ADV / 252-day ADV - recent liquidity expansion or contraction.",
+        direction=-1,
+        description=(
+            "21-day ADV / 252-day ADV - recent liquidity expansion or contraction. "
+            "Above 1 means the name has become *more* liquid, so -1."
+        ),
         data_requirement="price:volume",
     )
 )
@@ -121,8 +130,11 @@ def dollar_volume_ratio(ctx: FactorContext) -> pd.DataFrame:
     FactorSpec(
         name="zero_trading_days",
         category="liquidity",
-        direction=-1,
-        description="Fraction of zero-volume days over the last 21 sessions (Lesmond-style proxy).",
+        direction=1,
+        description=(
+            "Fraction of zero-volume days over the last 21 sessions (Lesmond-style "
+            "proxy). Higher = *less* liquid, so +1 like amihud_illiquidity."
+        ),
         data_requirement="price:volume",
     )
 )

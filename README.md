@@ -330,20 +330,29 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   `except Exception` around each component was narrowed so a misspelt derived
   field surfaces instead of silently dropping a term from the composite.
   The liquidity / size family and the factor facade are locked too (100% on
-  `liquidity.py` and `library.py`). **One open question is recorded there rather
-  than fixed**: `direction` is not decoration - `FactorPreprocessor.process` does
-  `if spec.direction == -1: df = -df` before the panel reaches the model, so a
-  wrong direction feeds the model the *inverted* signal. Four liquidity factors
-  currently contradict each other: `adv_21d`, `log_adv_21d` and
-  `dollar_volume_ratio` are `+1` while `turnover_21d` is `-1` although all four
-  rise with liquidity, and `zero_trading_days` is `-1` while
-  `amihud_illiquidity` is `+1` although both rise with illiquidity. The module
-  docstring names the *illiquidity premium*, and `log_market_cap` / `log_price` /
-  `amihud_illiquidity` / `turnover_21d` follow it, so the other four look
-  inverted - but which reading was intended for each is a strategy decision, not
-  a bug fix. `test_the_liquidity_directions_agree_with_each_other` records it as
-  a **strict xfail**, so fixing the directions turns it into an XPASS that fails
-  the suite until the marker is removed.
+  `liquidity.py` and `library.py`). `direction` is not decoration -
+  `FactorPreprocessor.process` does `if spec.direction == -1: df = -df` before
+  the panel reaches the model. Four liquidity factors used to contradict each
+  other: `adv_21d`, `log_adv_21d` and `dollar_volume_ratio` were `+1` while
+  `turnover_21d` was `-1` although all four rise with liquidity, and
+  `zero_trading_days` was `-1` while `amihud_illiquidity` was `+1` although both
+  rise with illiquidity. The module docstring names the *illiquidity premium*,
+  and `log_market_cap` / `log_price` / `amihud_illiquidity` / `turnover_21d`
+  follow it, so the four outliers were inverted; they have now been flipped, and
+  `test_the_liquidity_directions_agree_with_each_other` asserts the whole family
+  agrees instead of recording an xfail.
+  What that does and does not change is worth stating precisely, because the
+  first reading of it was too strong. The sample backtest is **numerically
+  identical** afterwards (`total_return 0.04782803011096548`, CAGR +0.75%,
+  Sharpe 0.12): a linear model absorbs a feature sign flip by flipping its own
+  coefficient, and the portfolio's expected-returns bridge uses the **model's**
+  rank IC (`pipeline.py` passes `wf.evaluation.summary["rank_ic_mean"]`), not the
+  per-factor ICs, so it was never affected either. What the flip fixes is the
+  **reported per-factor diagnostics**: four factors' IC signs were inverted, so
+  the factor table said a working signal did not work and vice versa, and any
+  analyst screening factors on IC - or any sizing path that fed a factor's own
+  IC into `mu = shrunk_ic * z * sigma` - would have read them backwards. The IC
+  column in the sample report flips sign for exactly those four rows.
 * `portfolio` — the expected-returns bridge (Grinold `mu = shrunk_IC * z * sigma`)
   is locked offline (100% on `expected_returns.py`): cash-neutral alphas, linear
   IC/volatility scaling, score de-meaning, outlier clipping, volatility-median
