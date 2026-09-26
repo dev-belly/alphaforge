@@ -498,9 +498,22 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   consumed by the optimiser - and must resolve its alias list in order and leave
   `size` to the risk model, and `_decomp_table` must attach the covariance the
   chart needs and fall back to the factor covariance rather than to something
-  arbitrary. `ResearchPipeline.run` itself is left to the integration suite: it
-  is a 200-line linear orchestration with no arithmetic, and driving it from a
-  unit test would mean stubbing a dozen collaborators and asserting the stubs.
+  arbitrary. `ResearchPipeline.run` is left to the **integration** suite rather
+  than unit-tested: it is a 200-line linear orchestration with no arithmetic, and
+  driving it from a unit test would mean stubbing a dozen collaborators and
+  asserting the stubs. What the integration suite does cover is the part of
+  `run` that is actually a contract and that the happy-path smoke test cannot
+  see - its **degradation behaviour**. Seven optional stages (risk model,
+  regime, stress, Brinson, factor attribution, report rendering, copilot) are
+  each wrapped in `try/except` plus a warning, so a broken one costs you that
+  section and not the run. That is invisible on good data, so a silent change
+  from "warn and continue" to "raise" would have gone unnoticed: the tests break
+  exactly one collaborator at a time and assert the run still completes, the
+  right warning is logged, the corresponding state field stays unset, and the
+  **upstream outputs survive** - a broken report renderer must not cost you the
+  backtest. Two cases pin the cascade rather than the single stage: losing the
+  risk model must also skip stress (it depends on it), while losing the report
+  renderer must leave `risk_result` intact.
 * `backtest` — the performance statistics are locked offline (100% on
   `metrics.py`), and they are pure arithmetic on a return series, so every
   headline number in the report is only as good as they are. Sharpe, Sortino,
