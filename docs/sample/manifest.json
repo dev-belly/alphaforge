@@ -1,9 +1,9 @@
 {
-  "generated_at_utc": "2026-09-26T10:35:46.030152+00:00",
+  "generated_at_utc": "2026-09-26T11:11:23.823990+00:00",
   "provider": "sample (synthetic)",
   "seed": 42,
   "command": "python scripts/publish_sample.py",
-  "source_revision": "2e9a9da13c769c778d61288ed63dfbf331e8d1d6",
+  "source_revision": "72fbd3250aeb95c5448c101016ad8f20784d7dd5",
   "python": "3.12.14",
   "dependencies": {
     "Jinja2": "3.1.6",
@@ -137,7 +137,7 @@
     "src/alphaforge/models/__init__.py": "f742c1b6f6f97de89c5d5d52a98fa96afd40cba9262ed2cdd0db4035217b62a3",
     "src/alphaforge/models/dataset.py": "2bff15d84736bf16dd728a1542c51f0919af2f371404d35eb1b301eb1b69da6f",
     "src/alphaforge/models/estimators.py": "d18cd7a9a49d1f863aebb88e52badb65446a6b379fbe8c1bc2fbba44300c7317",
-    "src/alphaforge/models/evaluation.py": "e91a0caeb794b08427686e313f80200cec4acb983146017704ac9b1a75c6aee0",
+    "src/alphaforge/models/evaluation.py": "7a19c4823fb77fa0c62a6c7b76204e4d846b65ea1f2644e1fec464fc344dd0b8",
     "src/alphaforge/models/pipeline.py": "0ef34db6b0cb4a9106370457ddaddebbaeddfafe52da1e91687aa5535da2457f",
     "src/alphaforge/models/split.py": "60af1d5263ae47c61425753194dad61a39d97beabef81a4c78e2b3373d826dce",
     "src/alphaforge/pipeline.py": "f3697a0c162a3169939b32b0a855a9d385cc00098d68937b633afb2bc5566e27",
@@ -146,7 +146,7 @@
     "src/alphaforge/portfolio/expected_returns.py": "e57a6625e186f8f07b2635319f406da429cd989cf9c6768a8416fe01ef1b85d6",
     "src/alphaforge/portfolio/optimizer.py": "5ca8bce5a14d78684a044dfcaf0493bab24b73b0813523cbdb3935413de4eae8",
     "src/alphaforge/reporting/__init__.py": "8ba145726e9fc60006efa399c10da1b8b1b7ee4bc1ef7e22c9b3847d3d43d1dc",
-    "src/alphaforge/reporting/charts.py": "76967f229534fa05a140c15d70c43c82605d958a9a3891c729be4975a57a5504",
+    "src/alphaforge/reporting/charts.py": "3de242686572e27000dbb47a113222416d123df5082e0cf408df7e72e0e10ae1",
     "src/alphaforge/reporting/report.py": "d35ceb6f7df72abe25e348b5e8c3f0d49c481bb6d6d4e2440f5916c62cabb19f",
     "src/alphaforge/risk/__init__.py": "a5a70afd4822aedb5e82aa91fc31cf2e735a7a8fa57b58f2cdf5b1c131961843",
     "src/alphaforge/risk/covariance.py": "97fe73f265d4408b6476b3511fd55a5a3237cd1a8192f34cee219c11672d2af2",
@@ -159,7 +159,7 @@
     "src/alphaforge/utils/math_utils.py": "58c60902bd48ffdcc3d399441ce6b4b96e67ed7fbf2765188a7069937fd18a88"
   },
   "artifact_sha256": {
-    "docs/sample/research_report.html": "a50b904270257ab03cc2d254fbbac02900a80524df41e41809a5818f4c356a06",
+    "docs/sample/research_report.html": "18657bfbaeee1c509e66d94ffc27c0fc8c1f3688e52dfa00300edc46f53f104e",
     "docs/sample/daily_results.csv": "6acbec516df93d6d5d68026f7d4ebd7c60f71b318a4bf39b702e3bf61473a10c",
     "docs/sample/config.json": "aeb628a8459f39240aad1b1eee54b7815009c77ae60877ddf347f50e02a0bea0",
     "docs/sample/metrics.json": "4efc5fe21fa480e0d92c26e32a88e1026e05e4effd8c8f7d269f6d425dc97867",
