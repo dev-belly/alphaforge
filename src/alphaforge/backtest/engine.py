@@ -62,6 +62,10 @@ class BacktestConfig:
     delist_grace_days: int = 5
     max_gross_leverage: float = 1.0
 
+    def __post_init__(self) -> None:
+        if type(self.execution_lag_days) is not int or self.execution_lag_days < 1:
+            raise ValueError("execution_lag_days must be at least one trading session")
+
     @classmethod
     def from_dict(cls, cfg: dict | None) -> BacktestConfig:
         cfg = cfg or {}
@@ -201,9 +205,14 @@ class BacktestEngine:
         warmup_end = dates[cfg.min_history_days]
         rb_dates = rb_dates[rb_dates >= warmup_end]
         exec_map = execution_dates(rb_dates, dates, cfg.execution_lag_days)
-        exec_to_signal = {
-            pd.Timestamp(v): pd.Timestamp(k) for k, v in exec_map.items() if v <= dates[-1]
+        # execution_dates intentionally clamps beyond-sample dates for display.
+        # A clamped date cannot satisfy the promised lag and must not trade.
+        valid_exec = {
+            pd.Timestamp(signal): pd.Timestamp(execution)
+            for signal, execution in exec_map.items()
+            if dates.get_loc(execution) - dates.get_loc(signal) == cfg.execution_lag_days
         }
+        rebalance_schedule = set(rb_dates)
 
         adv = panel.dollar_volume.rolling(cfg.adv_window, min_periods=5).mean()
         valuation_px = panel.close.ffill(limit=cfg.max_stale_days)
@@ -221,9 +230,10 @@ class BacktestEngine:
         turnover_rows: dict[pd.Timestamp, float] = {}
         cost_rows: dict[pd.Timestamp, float] = {}
         trades_frames: list[pd.DataFrame] = []
-        pending: pd.Series | None = None
+        scheduled: dict[pd.Timestamp, tuple[pd.Timestamp, pd.Series]] = {}
         n_rebalances = 0
         n_failed = 0
+        n_unexecuted = 0
 
         with Timer(f"backtest[{cfg.rebalance}]", log):
             for date in dates:
@@ -254,12 +264,14 @@ class BacktestEngine:
                 equity[date] = nav_t
 
                 # -- 3. execute anything signaled `lag` sessions ago --------
-                if date in exec_to_signal and pending is not None:
+                due = scheduled.pop(date, None)
+                if due is not None:
+                    signal_date, target_for_today = due
                     current_w = (
                         (shares * mark_px) / nav_t if nav_t > 0 else pd.Series(0.0, index=symbols)
                     )
                     result = self.broker.rebalance(
-                        target_weights=pending,
+                        target_weights=target_for_today,
                         current_weights=current_w,
                         nav=nav_t,
                         prices=raw_px,
@@ -268,6 +280,7 @@ class BacktestEngine:
                     if not result.trades.empty:
                         frame = result.trades.copy()
                         frame.insert(0, "date", date)
+                        frame.insert(1, "signal_date", signal_date)
                         trades_frames.append(frame.reset_index(names="symbol"))
                         turnover_rows[date] = float(result.trades["trade_weight"].abs().sum())
                         cost_rows[date] = cost_rows.get(date, 0.0) + result.cost_total
@@ -295,9 +308,6 @@ class BacktestEngine:
                     if prev_nav > 0:
                         rets[date] = nav_after / prev_nav - 1.0
                     n_rebalances += 1
-                    pending = None
-                elif date in exec_to_signal and pending is None:
-                    n_failed += 1
 
                 # -- 4. record end-of-day book ------------------------------
                 if nav_t > 0:
@@ -307,7 +317,7 @@ class BacktestEngine:
                 prev_nav = nav_t
 
                 # -- 5. generate the next signal ----------------------------
-                if date in set(rb_dates):
+                if date in rebalance_schedule:
                     if not cfg.allow_short:
                         prev_w = weight_rows.get(date)
                     else:
@@ -325,7 +335,13 @@ class BacktestEngine:
                         if gross > cfg.max_gross_leverage > 0:
                             target = target * (cfg.max_gross_leverage / gross)
                         target_rows[date] = target
-                        pending = target
+                        execution_date = valid_exec.get(date)
+                        if execution_date is None:
+                            n_unexecuted += 1
+                        else:
+                            if execution_date in scheduled:
+                                raise ValueError("Two signals have the same execution session")
+                            scheduled[execution_date] = (date, target)
                     else:
                         n_failed += 1
 
@@ -413,6 +429,7 @@ class BacktestEngine:
             diagnostics={
                 "n_rebalances": int(n_rebalances),
                 "n_skipped_rebalances": int(n_failed),
+                "n_unexecuted_signals": int(n_unexecuted),
                 "n_trades": int(len(trades_df)),
                 "total_costs": float(costs_s.sum()),
                 "cost_drag_ann": float(cost_drag),

@@ -19,7 +19,10 @@ gross = bt.gross_equity         # pre-cost curve (cost-drag overlay)
    that date.** The constructor receives the panel up to and including `t`.
 2. **Orders are executed `execution_lag_days` sessions later** (default 1), at
    that session's close. This is the structural guard against look-ahead: a
-   signal can never be traded on the same close that produced it.
+   signal can never be traded on the same close that produced it. Each signal
+   retains its own execution date when another signal arrives before its fill.
+   At the sample boundary, a signal lacking the full lag is recorded as
+   unexecuted rather than filled early.
 3. **The day's return is earned on the pre-trade book**, and trading costs are
    deducted from NAV at the end of the session — so costs reduce the compounding
    base in the simulation. Fill prices and market impact remain model assumptions.
@@ -35,7 +38,7 @@ gross = bt.gross_equity         # pre-cost curve (cost-drag overlay)
 |-------|---------|---------|
 | `rebalance` | `monthly` | rebalance cadence |
 | `initial_capital` | 10,000,000 | NAV base |
-| `execution_lag_days` | 1 | look-ahead guard |
+| `execution_lag_days` | 1 | positive number of trading sessions between signal and fill |
 | `min_history_days` | 252 | risk-model warm-up; first rebalances skipped until the window fills |
 | `adv_window` | 20 | ADV for impact |
 | `max_stale_days` | 5 | mark-to-market ffill limit |
@@ -79,8 +82,10 @@ implementations differ:
 ## Output — `BacktestResult`
 
 `equity`, `returns`, end-of-day `weights`, rebalance-date `target_weights`,
-`trades`, `turnover`, `costs`, `metrics`, `gross_equity`, `benchmark`, plus a
-`diagnostics` dict (`n_rebalances`, `n_skipped_rebalances`, `total_costs`,
+`trades` (with `signal_date` and execution `date`), `turnover`, `costs`,
+`metrics`, `gross_equity`, `benchmark`, plus a
+`diagnostics` dict (`n_rebalances`, `n_skipped_rebalances`,
+`n_unexecuted_signals`, `total_costs`,
 `cost_drag_ann`, `avg_turnover`, `avg_holdings`, `avg_gross_exposure`). The
 reporting layer and API consume this object. Compare outputs from the same run
 when checking their agreement.

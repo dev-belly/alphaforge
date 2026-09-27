@@ -223,6 +223,12 @@ survivorship bias). Gross (pre-cost) metrics are reconstructed exactly by adding
 the per-day cost drag back into the net series, so the drag is explicit. See
 [`docs/modules/backtesting.md`](docs/modules/backtesting.md).
 
+Overlapping signals have separate scheduled execution dates. With daily
+rebalancing and a two-session lag, today's signal cannot replace yesterday's
+pending target. Signals too close to the end of the sample remain unexecuted
+instead of being filled early on the last bar; trade rows include both signal
+and execution dates for audit.
+
 ## Performance & attribution
 
 `performance_stats` computes Sharpe (excess over the period's rf accrual),
