@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from alphaforge.execution.broker import BrokerSimulator
 from alphaforge.execution.costs import CostModel, total_cost_bps
@@ -74,8 +75,8 @@ def test_broker_untradeable_name_stays():
         {"commission_bps": 5, "slippage_bps": 10, "impact_coeff_bps": 20}
     ).rebalance(target, current, nav=1e8, prices=prices, adv_value=adv)
     assert "S0" in res.unfillable
-    # The stuck name keeps its pre-trade weight.
-    assert abs(res.weights.loc["S0"] - 0.3) < 1e-9
+    # Its shares stay put; its weight rises slightly when fees reduce NAV.
+    assert res.weights.loc["S0"] == pytest.approx(0.3 * 1e8 / (1e8 - res.cost_total))
 
 
 def test_broker_no_trade_when_already_there():
@@ -84,3 +85,66 @@ def test_broker_no_trade_when_already_there():
     res = BrokerSimulator().rebalance(target, current, nav=1e8, prices=prices, adv_value=adv)
     assert res.trades.empty
     assert res.cost_total == 0.0
+
+
+def test_broker_preserves_intended_cash_weight():
+    broker = BrokerSimulator({"commission_bps": 0, "slippage_bps": 0, "impact_coeff_bps": 0})
+    res = broker.rebalance(
+        target_weights=pd.Series({"A": 0.5}),
+        current_weights=pd.Series({"A": 0.0}),
+        nav=100.0,
+        prices=pd.Series({"A": 10.0}),
+    )
+    assert res.weights.loc["A"] == pytest.approx(0.5)
+    assert res.trades.loc["A", "trade_value"] == pytest.approx(50.0)
+
+
+def test_broker_does_not_buy_zero_price_or_deploy_reserved_cash():
+    broker = BrokerSimulator({"commission_bps": 0, "slippage_bps": 0, "impact_coeff_bps": 0})
+    res = broker.rebalance(
+        target_weights=pd.Series({"A": 0.2, "B": 0.2}),
+        current_weights=pd.Series({"A": 0.0, "B": 0.0}),
+        nav=100.0,
+        prices=pd.Series({"A": 10.0, "B": 0.0}),
+    )
+    assert res.weights.loc["A"] == pytest.approx(0.2)
+    assert res.weights.loc["B"] == pytest.approx(0.0)
+    assert res.unfillable == ["B"]
+
+
+def test_integer_share_rounding_changes_actual_book_and_costs():
+    broker = BrokerSimulator(
+        {"commission_bps": 100, "slippage_bps": 0, "impact_coeff_bps": 0},
+        {"allow_fractional_shares": False},
+    )
+    res = broker.rebalance(
+        target_weights=pd.Series({"A": 0.9}),
+        current_weights=pd.Series({"A": 0.0}),
+        nav=100.0,
+        prices=pd.Series({"A": 60.0}),
+    )
+    assert res.trades.loc["A", "shares"] == 1
+    assert res.trades.loc["A", "trade_value"] == pytest.approx(60.0)
+    assert res.cost_total == pytest.approx(0.6)
+    assert res.weights.loc["A"] == pytest.approx(60.0 / 99.4)
+
+    too_small = broker.rebalance(
+        target_weights=pd.Series({"A": 0.5}),
+        current_weights=pd.Series({"A": 0.0}),
+        nav=100.0,
+        prices=pd.Series({"A": 60.0}),
+    )
+    assert too_small.trades.empty
+    assert too_small.cost_total == 0.0
+    assert too_small.weights.loc["A"] == 0.0
+
+    rounded_below_minimum = BrokerSimulator(
+        {"commission_bps": 100, "slippage_bps": 0, "impact_coeff_bps": 0},
+        {"allow_fractional_shares": False, "min_trade_value": 80.0},
+    ).rebalance(
+        target_weights=pd.Series({"A": 0.9}),
+        current_weights=pd.Series({"A": 0.0}),
+        nav=100.0,
+        prices=pd.Series({"A": 60.0}),
+    )
+    assert rounded_below_minimum.trades.empty

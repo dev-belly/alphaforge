@@ -54,3 +54,31 @@ def test_daily_signals_execute_exactly_two_sessions_later() -> None:
 def test_same_close_execution_is_rejected() -> None:
     with pytest.raises(ValueError, match="at least one trading session"):
         BacktestConfig(execution_lag_days=0)
+
+
+def test_backtest_keeps_cash_when_target_is_half_invested() -> None:
+    dates = pd.bdate_range("2024-01-01", periods=8)
+    close = pd.DataFrame({"A": [10.0, 10.0, 10.0, 10.0, 20.0, 20.0, 20.0, 20.0]}, index=dates)
+    volume = pd.DataFrame(1_000_000.0, index=dates, columns=["A"])
+    panel = MarketPanel(
+        dates=dates,
+        close=close,
+        raw_close=close.copy(),
+        returns=close.pct_change(fill_method=None),
+        volume=volume,
+        dollar_volume=close * volume,
+        market_cap=pd.DataFrame(1e9, index=dates, columns=["A"]),
+        universe=pd.DataFrame(True, index=dates, columns=["A"]),
+        industry=pd.DataFrame("Other", index=dates, columns=["A"]),
+    )
+    result = BacktestEngine(
+        panel,
+        weight_fn=lambda _date, _previous: pd.Series({"A": 0.5}),
+        config=BacktestConfig(
+            rebalance="daily", min_history_days=2, execution_lag_days=1, initial_capital=100.0
+        ),
+        cost_model={"commission_bps": 0.0, "slippage_bps": 0.0, "impact_coeff_bps": 0.0},
+    ).run()
+    assert result.weights.loc[dates[3], "A"] == pytest.approx(0.5)
+    assert result.equity.loc[dates[4]] == pytest.approx(150.0)
+    assert result.returns.loc[dates[4]] == pytest.approx(0.5)

@@ -110,21 +110,19 @@ class BrokerSimulator:
 
         px = prices.reindex(target.index)
         # Cash drag: the analyser wants to see it, but it is not an order.
-        tradable = px.notna() & np.isfinite(px.to_numpy(dtype=float))
+        tradable = px.notna() & np.isfinite(px.to_numpy(dtype=float)) & (px > 0)
         unfillable = [s for s in target.index[~tradable] if abs(target[s] - current[s]) > 1e-12]
 
         # Untradeable names keep their current weight - we cannot sell what has
         # no price, so it stays in the book and is marked at the last close.
-        # Their notional still has to be *funded*, so the tradable part of the
-        # target is scaled onto the remaining budget; otherwise the book would
-        # silently end up levered by the stuck position.
+        # Their notional still has to be *funded*. Scale the tradable part only
+        # when it exceeds the remaining budget: a target below the budget
+        # deliberately leaves cash in the book (e.g. after vol targeting).
         effective_target = target.copy()
         budget = 1.0 - float(current[~tradable].sum())
         targeted = float(target[tradable].sum())
-        if targeted > 1e-12 and budget > 0:
-            effective_target[tradable] = target[tradable] * (budget / targeted)
-        else:
-            effective_target[tradable] = 0.0
+        if targeted > budget and targeted > 1e-12:
+            effective_target[tradable] = target[tradable] * (max(budget, 0.0) / targeted)
         effective_target[~tradable] = current[~tradable]
 
         trade_weight = (effective_target - current).fillna(0.0)
@@ -132,6 +130,14 @@ class BrokerSimulator:
         small = trade_value.abs() < cfg.min_trade_value
         trade_weight = trade_weight.where(~small, 0.0)
         trade_value = trade_weight * float(nav)
+        if not cfg.allow_fractional_shares:
+            # Round *before* estimating costs and the post-trade book. Rounding
+            # only the displayed fills created phantom holdings and charged
+            # fees on shares which were never bought or sold.
+            rounded_shares = np.trunc(trade_value[tradable] / px[tradable])
+            trade_value.loc[tradable] = rounded_shares * px[tradable]
+            trade_value = trade_value.where(trade_value.abs() >= cfg.min_trade_value, 0.0)
+            trade_weight = trade_value / float(nav)
 
         adv = (
             adv_value.reindex(target.index)
@@ -181,24 +187,16 @@ class BrokerSimulator:
             },
             index=active.index,
         )
-        if not cfg.allow_fractional_shares:
-            trades["shares"] = np.trunc(trades["shares"].to_numpy(dtype=float))
-            trades["trade_value"] = trades["shares"].to_numpy(dtype=float) * trades[
-                "price"
-            ].to_numpy(dtype=float)
-            trades["trade_weight"] = trades["trade_value"].to_numpy(dtype=float) / float(nav)
-
         cost_total = float(trades["cost_total"].sum())
         traded_notional = float(trades["trade_value"].abs().sum())
 
         # Post-trade book: target weights, with costs taken out of NAV. The
         # weight vector is what the portfolio holds; the cash deduction shows up
         # in NAV, so weights are re-expressed on the smaller NAV.
-        realised_weights = effective_target.copy()
+        realised_weights = current.add(trade_weight, fill_value=0.0)
         nav_after = float(nav) - cost_total
         if nav_after > 0 and abs(float(nav)) > 0:
             realised_weights = realised_weights * (float(nav) / nav_after)
-        realised_weights[~tradable] = current[~tradable]
 
         log.debug(
             f"rebalance: {len(trades)} orders | turnover {trades['trade_weight'].abs().sum():.3f} | "

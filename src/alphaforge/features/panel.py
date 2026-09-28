@@ -151,13 +151,12 @@ def build_panel(
             )
             mcap_source = "dollar_volume_proxy"
 
-    industry_long = (
-        df[["symbol", "industry"]].drop_duplicates("symbol").set_index("symbol")["industry"]
-    )
-    industry = pd.DataFrame(
-        np.tile(industry_long.reindex(close.columns).to_numpy(), (len(close), 1)),
-        index=close.index,
-        columns=close.columns,
+    # Industry can change over time. Tiling the first label for each symbol
+    # silently applies an obsolete sector to all later risk/portfolio dates.
+    industry = (
+        df.pivot_table(index=date_col, columns="symbol", values="industry", aggfunc="last")
+        .reindex(index=close.index, columns=close.columns)
+        .fillna("Unknown")
     )
 
     if universe is None:

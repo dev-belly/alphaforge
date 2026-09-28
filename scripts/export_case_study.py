@@ -22,7 +22,7 @@ from alphaforge.risk.factor_model import (
     factor_risk_decomposition,
     portfolio_risk,
 )
-from alphaforge.utils.config import Config
+from alphaforge.utils.config import Config, load_yaml
 
 OUT = Path("research/case_study_data.json")
 
@@ -36,6 +36,15 @@ def _f(x: Any) -> Any:
     return None if not np.isfinite(v) else round(v, 6)
 
 
+def _scalar(x: Any) -> Any:
+    """Keep dates and labels in the audit record while rounding numeric data."""
+    if x is None:
+        return None
+    if isinstance(x, (str, pd.Timestamp)):
+        return str(x.date()) if isinstance(x, pd.Timestamp) else x
+    return _f(x)
+
+
 def _series(s: pd.Series | None, n: int | None = None) -> dict:
     if s is None or len(s) == 0:
         return {}
@@ -46,18 +55,21 @@ def _series(s: pd.Series | None, n: int | None = None) -> dict:
 
 
 def main() -> int:
-    cfg = Config.load()
-    state = ResearchPipeline(cfg).run(
-        start="2016-01-01", end="2024-12-31", model_type="ridge", report_dir="research/reports"
-    )
+    # Use the same fixed configuration as the published synthetic example.
+    # A hard-coded 2016 start once made this case study disagree with the
+    # public 2015-start sample, even though both claimed the same seed.
+    cfg = Config(raw=load_yaml("configs/default.yaml"))
+    if cfg.get("data.provider") != "sample":
+        raise ValueError("Case study export requires the synthetic sample provider")
+    state = ResearchPipeline(cfg).run(report_dir="research/reports")
 
     out: dict[str, Any] = {
         "meta": {
-            "start": "2016-01-01",
-            "end": "2024-12-31",
+            "start": cfg.get("data.start_date"),
+            "end": cfg.get("data.end_date"),
             "seed": cfg.get("project.seed", 42),
             "provider": cfg.raw.get("data", {}).get("provider"),
-            "model_type": "ridge",
+            "model_type": cfg.get("model.type"),
             "portfolio_method": cfg.raw.get("portfolio", {}).get("method"),
             "rebalance": cfg.raw.get("backtest", {}).get("rebalance"),
         }
@@ -97,7 +109,7 @@ def main() -> int:
     ev = state.model_eval
     if ev is not None:
         out["model"] = {
-            "summary": {k: _f(v) for k, v in dict(ev.summary).items()},
+            "summary": {k: _scalar(v) for k, v in dict(ev.summary).items()},
             "quantile_returns": (
                 {str(k): _f(v) for k, v in ev.quantile_returns.items()}
                 if ev.quantile_returns is not None
@@ -131,8 +143,8 @@ def main() -> int:
     if bt is not None:
         m = bt.metrics
         out["backtest"] = {
-            "metrics": {k: _f(v) for k, v in m.items()},
-            "diagnostics": {k: _f(v) for k, v in bt.diagnostics.items()},
+            "metrics": {k: _scalar(v) for k, v in m.items()},
+            "diagnostics": {k: _scalar(v) for k, v in bt.diagnostics.items()},
             "n_days": int(len(bt.returns)),
             "n_trades": int(len(bt.trades)),
             "total_costs": _f(bt.costs.sum()),

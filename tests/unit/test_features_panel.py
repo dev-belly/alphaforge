@@ -192,11 +192,19 @@ def test_a_supplied_universe_is_reindexed_and_masked_by_price() -> None:
     assert panel.universe.loc[DATES[8], "BBB"]
 
 
-def test_industry_labels_are_tiled_across_every_date() -> None:
+def test_industry_labels_follow_each_date() -> None:
     panel = build_panel(_long_table())
     assert panel.industry.shape == (len(DATES), len(SYMBOLS))
     for sym, label in INDUSTRY.items():
         assert panel.industry[sym].unique().tolist() == [label]
+
+    changed = _long_table()
+    changed.loc[(changed["symbol"] == "AAA") & (changed["date"] >= DATES[100]), "industry"] = (
+        "Energy"
+    )
+    panel = build_panel(changed)
+    assert panel.industry.loc[DATES[99], "AAA"] == "Tech"
+    assert panel.industry.loc[DATES[100], "AAA"] == "Energy"
 
 
 @pytest.mark.parametrize("how", ["missing_column", "missing_label"])
