@@ -50,11 +50,11 @@ historical rebalances cannot see later test outcomes.
 
 | Metric | Value |
 |--------|-------|
-| Rank-IC (mean) | 0.0447 |
-| ICIR | 0.205 |
-| t-stat | 1.76 |
-| Positive-IC ratio | 57.1% |
-| Long-short IR | 0.132 |
+| Rank-IC (mean) | 0.0465 |
+| ICIR | 0.215 |
+| t-stat | 1.84 |
+| Positive-IC ratio | 57.9% |
+| Long-short IR | 0.126 |
 | Out-of-sample periods | 1,545 |
 
 ## Risk model
@@ -73,37 +73,37 @@ explicit.
 
 | Metric | Net (after-cost) | Gross (pre-cost) |
 |--------|------------------|------------------|
-| Total return | 3.09% | 4.27% |
-| CAGR | 0.49% | 0.68% |
-| Annualised vol | 13.34% | 13.35% |
-| Sharpe | 0.103 | 0.117 |
-| Sortino | 0.146 | 0.165 |
-| Max drawdown | −23.3% | −23.2% |
-| Calmar | 0.021 | 0.029 |
-| Cost drag (CAGR gap) | — | **0.18% / yr** |
+| Total return | 5.20% | 6.15% |
+| CAGR | 0.82% | 0.97% |
+| Annualised vol | 10.75% | 10.75% |
+| Sharpe | 0.130 | 0.143 |
+| Sortino | 0.184 | 0.203 |
+| Max drawdown | −19.1% | −19.0% |
+| Calmar | 0.043 | 0.051 |
+| Cost drag (CAGR gap) | — | **0.15% / yr** |
 
-Headline diagnostics: **60 rebalances** (2 skipped — insufficient scored names),
-**1,861 trades**, **107,985 simulated units in total costs** (~1.08% of initial
-capital over the full sample), average **23.8 holdings**, average gross exposure **0.83**, beta
-**≈ 0.47** versus the SP500 sample benchmark (≈71% of variance explained by the
-market, R²=0.71) — a modestly market-exposed long-only book, not market-neutral.
+Headline diagnostics: **60 rebalances** (1 skipped — insufficient scored names),
+**1,855 trades**, **87,056 simulated units in total costs** (~0.87% of initial
+capital over the full sample), average **23.7 holdings**, average gross exposure **0.65**, beta
+**≈ 0.37** versus the SP500 sample benchmark (≈70% of variance explained by the
+market, R²=0.70) — a modestly market-exposed long-only book, not market-neutral.
 
 ## Interpretation
 
 * **Reproducibility.** The recorded seed, config, source hashes, Python and
   dependencies are in [`docs/sample/manifest.json`](../docs/sample/manifest.json).
   `python scripts/publish_sample.py` rebuilds the public example.
-* **Cost honesty.** The gross-sharpe / net-sharpe gap (0.117 vs 0.103) is small
-  because average turnover is only 0.24; the report states the drag in basis
+* **Cost honesty.** The gross-sharpe / net-sharpe gap (0.143 vs 0.130) is small
+  because average turnover is only 0.19; the report states the drag in basis
   points, not prose.
 * **Benchmark exposure.** Versus the SP500 sample benchmark the book carries
-  beta ≈ 0.47 (R²=0.71) and information ratio ≈ 0.23. The active return is
+  beta ≈ 0.37 (R²=0.70) and information ratio ≈ 0.21. The active return is
   positive in this synthetic run and does not establish a live edge.
 * **Look-ahead guarded.** Signals are executed one session after the signal
   date; the historical portfolio uses the predeclared IC rather than the full
   test-window IC; the benchmark return series is never double-differenced.
 * **Candid weakness.** On this synthetic panel the strategy is barely
-  positive — CAGR 0.49% net, Sharpe 0.10. That is the honest result of moderate
+  positive — CAGR 0.82% net, Sharpe 0.13. That is the honest result of moderate
   injected signal plus real costs, and it is the correct answer to report. The
   engineering (validation, CV, costs, attribution) is what transfers to a real
   book; the alpha itself would be re-estimated on live data.

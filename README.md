@@ -386,13 +386,11 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   follow it, so the four outliers were inverted; they have now been flipped, and
   `test_the_liquidity_directions_agree_with_each_other` asserts the whole family
   agrees instead of recording an xfail.
-  What that does and does not change is worth stating precisely, because the
-  first reading of it was too strong. The sample backtest is **numerically
-  identical** afterwards (`total_return 0.04782803011096548`, CAGR +0.75%,
-  Sharpe 0.12): a linear model absorbs a feature sign flip by flipping its own
-  coefficient, and the portfolio's expected-returns bridge uses the **model's**
-  rank IC (`pipeline.py` passes `wf.evaluation.summary["rank_ic_mean"]`), not the
-  per-factor ICs, so it was never affected either. What the flip fixes is the
+  What that does and does not change is worth stating precisely. In the
+  earlier sign-only comparison, Ridge absorbed a feature sign flip by flipping
+  its coefficient, so that comparison's backtest was unchanged. The current
+  portfolio uses the fixed, predeclared `portfolio.assumed_ic`, never the
+  aggregate future test IC. What the direction fix changes is the
   **reported per-factor diagnostics**: four factors' IC signs were inverted, so
   the factor table said a working signal did not work and vice versa, and any
   analyst screening factors on IC - or any sizing path that fed a factor's own
@@ -621,10 +619,10 @@ through `fastapi.testclient.TestClient` (starts the pipeline, then serves
 
 **Verified by actually executing** (not just claimed) the three delivery surfaces:
 
-* **Demo** — `python -m alphaforge.cli --start 2016-01-01 --end 2024-12-31`
+* **Demo** — `python -m alphaforge.cli --start 2015-01-01 --end 2024-12-31`
   runs the whole stack end-to-end and writes `research/reports/research_report.html`
-  (42 factors, walk-forward Rank-IC ≈ +0.044, risk-model R² ≈ 0.50, backtest
-  CAGR +0.49% / Sharpe 0.10 / MaxDD −23.3% under the fixed ex-ante IC).
+  (42 factors, walk-forward Rank-IC ≈ +0.047, risk-model R² ≈ 0.50, backtest
+  CAGR +0.82% / Sharpe 0.13 / MaxDD −19.1% under the fixed ex-ante IC).
 * **API** — `uvicorn alphaforge_api.main:app` was launched and exercised with a
   real run: `POST /research/run` plus `GET` `/factors /backtest /risk /briefing
   /attribution /regime /stress /portfolio/* /report`, `POST` `/optimize

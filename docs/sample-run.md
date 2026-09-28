@@ -20,48 +20,48 @@ Sharpe, Sortino, Calmar and information ratio are ratios, not percentages.
 | n_periods | 1566 |
 | years | 6.21429 |
 | periods_per_year | 252 |
-| total_return | 0.0309223 |
-| cagr | 0.00491264 |
-| ann_vol | 0.133442 |
-| ann_downside_dev | 0.0946157 |
-| sharpe | 0.103438 |
-| sortino | 0.145884 |
-| calmar | 0.0210709 |
-| max_drawdown | -0.233148 |
+| total_return | 0.0520076 |
+| cagr | 0.00819204 |
+| ann_vol | 0.10748 |
+| ann_downside_dev | 0.0758553 |
+| sharpe | 0.12962 |
+| sortino | 0.183659 |
+| calmar | 0.0429131 |
+| max_drawdown | -0.190898 |
 | max_drawdown_date | 2020-12-31 |
-| max_drawdown_duration_days | 1082 |
-| var_95 | -0.0141114 |
-| cvar_95 | -0.0201959 |
-| skew | -0.0703616 |
-| kurtosis | 2.54766 |
-| best_period | 0.0376829 |
-| worst_period | -0.0398015 |
-| positive_period_share | 0.427203 |
-| avg_period_return | 5.47736e-05 |
-| hit_rate | 0.427203 |
-| avg_turnover | 0.236627 |
-| cost_drag_ann | 0.00181532 |
+| max_drawdown_duration_days | 1065 |
+| var_95 | -0.0109244 |
+| cvar_95 | -0.01643 |
+| skew | -0.00136024 |
+| kurtosis | 3.43624 |
+| best_period | 0.0375985 |
+| worst_period | -0.0349239 |
+| positive_period_share | 0.427842 |
+| avg_period_return | 5.52839e-05 |
+| hit_rate | 0.427842 |
+| avg_turnover | 0.191267 |
+| cost_drag_ann | 0.00144403 |
 | benchmark_return | -0.267025 |
 | benchmark_cagr | -0.0487597 |
 | benchmark_vol | 0.241829 |
-| active_return | 0.297947 |
-| beta | 0.46539 |
-| alpha_ann | 0.0234565 |
-| correlation | 0.843399 |
-| r_squared | 0.711321 |
-| tracking_error | 0.147834 |
-| information_ratio | 0.233681 |
-| up_capture | 0.490524 |
-| down_capture | 0.473705 |
-| treynor | 0.0296589 |
-| gross_total_return | 0.0426918 |
-| gross_cagr | 0.00675002 |
-| gross_ann_vol | 0.133456 |
-| gross_sharpe | 0.117128 |
-| gross_sortino | 0.165316 |
-| gross_calmar | 0.0290758 |
-| gross_max_drawdown | -0.232152 |
-| cost_drag_cagr | 0.00183738 |
+| active_return | 0.319032 |
+| beta | 0.371263 |
+| alpha_ann | 0.0216326 |
+| correlation | 0.835341 |
+| r_squared | 0.697795 |
+| tracking_error | 0.163123 |
+| information_ratio | 0.212566 |
+| up_capture | 0.388454 |
+| down_capture | 0.37303 |
+| treynor | 0.0375247 |
+| gross_total_return | 0.0615388 |
+| gross_cagr | 0.00965637 |
+| gross_ann_vol | 0.107485 |
+| gross_sharpe | 0.143122 |
+| gross_sortino | 0.202939 |
+| gross_calmar | 0.0508307 |
+| gross_max_drawdown | -0.189971 |
+| cost_drag_cagr | 0.00146433 |
 | gross_benchmark_cagr | -0.0487597 |
 
 ## Run it again
@@ -74,7 +74,7 @@ python scripts/publish_sample.py
 This command reads `configs/default.yaml` directly, without environment overrides,
 and refuses a non-synthetic provider. Review the manifest's Python and dependency
 versions to reproduce this environment. Exact source file hashes accompany the
-[source revision](https://github.com/dev-belly/alphaforge/commit/503d441822bcf133e40c612b569a11cea575666b).
+[source revision](https://github.com/dev-belly/alphaforge/commit/06904490bca4465292fd286d0cac518571441cde).
 
 Output files go to `docs/sample/`; README figures go to `assets/`.
 For normal research runs with other providers or settings, use the [Quickstart](quickstart.md).
