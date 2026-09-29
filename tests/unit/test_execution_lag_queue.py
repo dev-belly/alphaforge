@@ -56,6 +56,29 @@ def test_same_close_execution_is_rejected() -> None:
         BacktestConfig(execution_lag_days=0)
 
 
+def test_short_sale_flag_is_parsed_as_a_boolean() -> None:
+    assert BacktestConfig.from_dict({"allow_short": "false"}).allow_short is False
+    assert BacktestConfig.from_dict({"allow_short": "true"}).allow_short is True
+
+
+@pytest.mark.parametrize(
+    ("settings", "message"),
+    [
+        ({"allow_short": "maybe"}, "allow_short"),
+        ({"initial_capital": float("nan")}, "initial_capital"),
+        ({"initial_capital": 0}, "initial_capital"),
+        ({"max_gross_leverage": float("inf")}, "max_gross_leverage"),
+        ({"max_gross_leverage": 0}, "max_gross_leverage"),
+        ({"max_stale_days": 0}, "max_stale_days"),
+        ({"delist_grace_days": 0}, "delist_grace_days"),
+        ({"max_stale_days": 1, "delist_grace_days": 3}, "max_stale_days"),
+    ],
+)
+def test_unsafe_backtest_configuration_is_rejected(settings: dict, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        BacktestConfig.from_dict(settings)
+
+
 def test_backtest_keeps_cash_when_target_is_half_invested() -> None:
     dates = pd.bdate_range("2024-01-01", periods=8)
     close = pd.DataFrame({"A": [10.0, 10.0, 10.0, 10.0, 20.0, 20.0, 20.0, 20.0]}, index=dates)
