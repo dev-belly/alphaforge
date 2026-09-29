@@ -65,17 +65,35 @@ class BacktestConfig:
     def __post_init__(self) -> None:
         if type(self.execution_lag_days) is not int or self.execution_lag_days < 1:
             raise ValueError("execution_lag_days must be at least one trading session")
+        if not np.isfinite(self.initial_capital) or self.initial_capital <= 0:
+            raise ValueError("initial_capital must be finite and positive")
+        if type(self.allow_short) is not bool:
+            raise ValueError("allow_short must be a boolean")
+        if not np.isfinite(self.max_gross_leverage) or self.max_gross_leverage <= 0:
+            raise ValueError("max_gross_leverage must be finite and positive")
+        if type(self.max_stale_days) is not int or self.max_stale_days < 1:
+            raise ValueError("max_stale_days must be a positive integer")
+        if type(self.delist_grace_days) is not int or self.delist_grace_days < 1:
+            raise ValueError("delist_grace_days must be a positive integer")
+        if self.max_stale_days < self.delist_grace_days:
+            raise ValueError("max_stale_days must cover delist_grace_days")
 
     @classmethod
     def from_dict(cls, cfg: dict | None) -> BacktestConfig:
         cfg = cfg or {}
+        allow_short = cfg.get("allow_short", False)
+        if isinstance(allow_short, str):
+            value = allow_short.strip().lower()
+            if value not in {"true", "false"}:
+                raise ValueError("allow_short must be true or false")
+            allow_short = value == "true"
         return cls(
             start_date=cfg.get("start_date"),
             end_date=cfg.get("end_date"),
             rebalance=str(cfg.get("rebalance", "monthly")),
             initial_capital=float(cfg.get("initial_capital", 10_000_000.0)),
             execution_lag_days=int(cfg.get("execution_lag_days", 1)),
-            allow_short=bool(cfg.get("allow_short", False)),
+            allow_short=allow_short,
             min_history_days=int(cfg.get("min_history_days", 252)),
             adv_window=int(cfg.get("adv_window", 20)),
             max_stale_days=int(cfg.get("max_stale_days", 5)),

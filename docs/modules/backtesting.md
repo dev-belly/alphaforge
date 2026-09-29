@@ -41,9 +41,13 @@ gross = bt.gross_equity         # pre-cost curve (cost-drag overlay)
 | `execution_lag_days` | 1 | positive number of trading sessions between signal and fill |
 | `min_history_days` | 252 | risk-model warm-up; first rebalances skipped until the window fills |
 | `adv_window` | 20 | ADV for impact |
-| `max_stale_days` | 5 | mark-to-market ffill limit |
-| `delist_grace_days` | 5 | dark sessions before force-liquidation |
-| `max_gross_leverage` | 1.0 | long-only budget |
+| `max_stale_days` | 5 | mark-to-market ffill limit; must cover the delist grace window |
+| `delist_grace_days` | 5 | positive number of dark sessions before force-liquidation |
+| `max_gross_leverage` | 1.0 | finite, positive gross exposure cap |
+
+`initial_capital` must be finite and positive. `allow_short` accepts a boolean
+or the strings `"true"` and `"false"`; other values are rejected. An expired
+mark cannot silently remove a held position before its liquidation window.
 
 ## Costs — gross vs net, made explicit
 
