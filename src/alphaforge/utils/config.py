@@ -19,6 +19,38 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "default.yaml"
 
 
+def config_integer(value: Any, name: str) -> int:
+    """Accept integer session counts and text integers without truncating floats."""
+    if type(value) is int:
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            pass
+    raise ValueError(f"{name} must be an integer")
+
+
+def config_number(value: Any, name: str) -> float:
+    if isinstance(value, (bool, np.bool_)):
+        raise ValueError(f"{name} must be a finite number, not a boolean")
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError(f"{name} must be a finite number") from error
+    if not np.isfinite(number):
+        raise ValueError(f"{name} must be a finite number")
+    return number
+
+
+def config_boolean(value: Any, name: str) -> bool:
+    if type(value) is bool:
+        return value
+    if isinstance(value, str) and value.strip().lower() in {"true", "false"}:
+        return value.strip().lower() == "true"
+    raise ValueError(f"{name} must be a boolean or true/false string")
+
+
 def load_yaml(path: str | Path) -> dict[str, Any]:
     path = Path(path)
     if not path.exists():

@@ -38,6 +38,7 @@ from alphaforge.data.calendar import execution_dates, rebalance_dates
 from alphaforge.execution.broker import BrokerSimulator
 from alphaforge.execution.costs import CostModel
 from alphaforge.features.panel import MarketPanel
+from alphaforge.utils.config import config_boolean, config_integer, config_number
 from alphaforge.utils.logging import Timer, get_logger
 from alphaforge.utils.math_utils import ensure_returns
 
@@ -63,6 +64,29 @@ class BacktestConfig:
     max_gross_leverage: float = 1.0
 
     def __post_init__(self) -> None:
+        for name in (
+            "execution_lag_days",
+            "min_history_days",
+            "adv_window",
+            "max_stale_days",
+            "delist_grace_days",
+        ):
+            setattr(self, name, config_integer(getattr(self, name), name))
+        self.initial_capital = config_number(self.initial_capital, "initial_capital")
+        self.max_gross_leverage = config_number(self.max_gross_leverage, "max_gross_leverage")
+        self.allow_short = config_boolean(self.allow_short, "allow_short")
+        if not isinstance(self.rebalance, str) or self.rebalance.lower() not in {
+            "daily",
+            "weekly",
+            "monthly",
+            "quarterly",
+            "yearly",
+        }:
+            raise ValueError("rebalance must be daily, weekly, monthly, quarterly or yearly")
+        if self.min_history_days < 0:
+            raise ValueError("min_history_days must be a nonnegative integer")
+        if self.adv_window < 5:
+            raise ValueError("adv_window must cover at least five observed sessions")
         if type(self.execution_lag_days) is not int or self.execution_lag_days < 1:
             raise ValueError("execution_lag_days must be at least one trading session")
         if not np.isfinite(self.initial_capital) or self.initial_capital <= 0:
@@ -81,24 +105,18 @@ class BacktestConfig:
     @classmethod
     def from_dict(cls, cfg: dict | None) -> BacktestConfig:
         cfg = cfg or {}
-        allow_short = cfg.get("allow_short", False)
-        if isinstance(allow_short, str):
-            value = allow_short.strip().lower()
-            if value not in {"true", "false"}:
-                raise ValueError("allow_short must be true or false")
-            allow_short = value == "true"
         return cls(
             start_date=cfg.get("start_date"),
             end_date=cfg.get("end_date"),
             rebalance=str(cfg.get("rebalance", "monthly")),
-            initial_capital=float(cfg.get("initial_capital", 10_000_000.0)),
-            execution_lag_days=int(cfg.get("execution_lag_days", 1)),
-            allow_short=allow_short,
-            min_history_days=int(cfg.get("min_history_days", 252)),
-            adv_window=int(cfg.get("adv_window", 20)),
-            max_stale_days=int(cfg.get("max_stale_days", 5)),
-            delist_grace_days=int(cfg.get("delist_grace_days", 5)),
-            max_gross_leverage=float(cfg.get("max_gross_leverage", 1.0)),
+            initial_capital=cfg.get("initial_capital", 10_000_000.0),
+            execution_lag_days=cfg.get("execution_lag_days", 1),
+            allow_short=cfg.get("allow_short", False),
+            min_history_days=cfg.get("min_history_days", 252),
+            adv_window=cfg.get("adv_window", 20),
+            max_stale_days=cfg.get("max_stale_days", 5),
+            delist_grace_days=cfg.get("delist_grace_days", 5),
+            max_gross_leverage=cfg.get("max_gross_leverage", 1.0),
         )
 
 

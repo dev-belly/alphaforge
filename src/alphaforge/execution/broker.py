@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from alphaforge.execution.costs import CostConfig, CostModel, total_cost_bps
+from alphaforge.utils.config import config_boolean, config_number
 from alphaforge.utils.logging import get_logger
 
 log = get_logger("execution.broker")
@@ -48,13 +49,24 @@ class BrokerConfig:
     min_trade_value: float = 0.0  # ignore orders smaller than this
     price_source: str = "close"  # close | open | vwap
 
+    def __post_init__(self) -> None:
+        self.participation_cap = config_number(self.participation_cap, "participation_cap")
+        self.min_trade_value = config_number(self.min_trade_value, "min_trade_value")
+        self.allow_fractional_shares = config_boolean(
+            self.allow_fractional_shares, "allow_fractional_shares"
+        )
+        if not 0 < self.participation_cap <= 1:
+            raise ValueError("participation_cap must be within (0, 1]")
+        if self.min_trade_value < 0:
+            raise ValueError("min_trade_value must be nonnegative")
+
     @classmethod
     def from_dict(cls, cfg: dict | None) -> BrokerConfig:
         cfg = cfg or {}
         return cls(
-            participation_cap=float(cfg.get("participation_cap", 0.10)),
-            allow_fractional_shares=bool(cfg.get("allow_fractional_shares", True)),
-            min_trade_value=float(cfg.get("min_trade_value", 0.0)),
+            participation_cap=cfg.get("participation_cap", 0.10),
+            allow_fractional_shares=cfg.get("allow_fractional_shares", True),
+            min_trade_value=cfg.get("min_trade_value", 0.0),
             price_source=str(cfg.get("price_source", "close")),
         )
 
