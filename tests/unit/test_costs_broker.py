@@ -6,8 +6,54 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from alphaforge.execution.broker import BrokerSimulator
-from alphaforge.execution.costs import CostModel, total_cost_bps
+from alphaforge.execution.broker import BrokerConfig, BrokerSimulator
+from alphaforge.execution.costs import CostConfig, CostModel, total_cost_bps
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"slippage_bps": -50},
+        {"commission_bps": -1},
+        {"impact_coeff_bps": float("nan")},
+        {"min_commission": float("inf")},
+        {"borrow_bps_annual": -1},
+        {"participation_cap": 0},
+        {"participation_cap": 1.1},
+        {"slippage_bps": True},
+    ],
+)
+def test_unsafe_cost_assumptions_cannot_create_credits(settings: dict) -> None:
+    with pytest.raises(ValueError):
+        CostModel(settings)
+    with pytest.raises(ValueError):
+        CostConfig(**settings)
+
+
+def test_string_false_enforces_integer_fills() -> None:
+    broker = BrokerSimulator(
+        {"commission_bps": 0, "slippage_bps": 0, "impact_coeff_bps": 0},
+        {"allow_fractional_shares": "false"},
+    )
+    result = broker.rebalance(pd.Series({"A": 0.9}), None, 100.0, pd.Series({"A": 60.0}))
+    assert result.trades.loc["A", "shares"] == 1
+    assert result.weights.loc["A"] == pytest.approx(0.6)
+    assert BrokerConfig.from_dict({"allow_fractional_shares": "true"}).allow_fractional_shares
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"allow_fractional_shares": "maybe"},
+        {"allow_fractional_shares": 1},
+        {"participation_cap": 0},
+        {"min_trade_value": -1},
+        {"min_trade_value": float("nan")},
+    ],
+)
+def test_unsafe_broker_controls_fail_before_any_fill(settings: dict) -> None:
+    with pytest.raises(ValueError):
+        BrokerSimulator(config=settings)
 
 
 def test_cost_model_zero_for_zero_value():

@@ -72,11 +72,28 @@ def test_short_sale_flag_is_parsed_as_a_boolean() -> None:
         ({"max_stale_days": 0}, "max_stale_days"),
         ({"delist_grace_days": 0}, "delist_grace_days"),
         ({"max_stale_days": 1, "delist_grace_days": 3}, "max_stale_days"),
+        ({"execution_lag_days": 1.9}, "execution_lag_days"),
+        ({"execution_lag_days": True}, "execution_lag_days"),
+        ({"max_stale_days": 5.5}, "max_stale_days"),
+        ({"min_history_days": -1}, "min_history_days"),
+        ({"min_history_days": True}, "min_history_days"),
+        ({"adv_window": 4}, "adv_window"),
+        ({"adv_window": 20.5}, "adv_window"),
+        ({"rebalance": "montly"}, "rebalance"),
+        ({"initial_capital": True}, "initial_capital"),
+        ({"max_gross_leverage": True}, "max_gross_leverage"),
     ],
 )
 def test_unsafe_backtest_configuration_is_rejected(settings: dict, message: str) -> None:
     with pytest.raises(ValueError, match=message):
         BacktestConfig.from_dict(settings)
+
+
+def test_integer_session_strings_keep_their_declared_values() -> None:
+    config = BacktestConfig.from_dict(
+        {"execution_lag_days": "2", "min_history_days": "0", "adv_window": "5"}
+    )
+    assert (config.execution_lag_days, config.min_history_days, config.adv_window) == (2, 0, 5)
 
 
 def test_backtest_keeps_cash_when_target_is_half_invested() -> None:
