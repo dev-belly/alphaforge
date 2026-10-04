@@ -28,6 +28,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from alphaforge.utils.config import config_number
 from alphaforge.utils.logging import get_logger
 
 log = get_logger("execution.costs")
@@ -45,16 +46,38 @@ class CostConfig:
     # Annualised borrow cost charged on short notional (0 when long-only).
     borrow_bps_annual: float = 50.0
 
+    def __post_init__(self) -> None:
+        for name in (
+            "commission_bps",
+            "slippage_bps",
+            "impact_coeff_bps",
+            "participation_cap",
+            "min_commission",
+            "borrow_bps_annual",
+        ):
+            setattr(self, name, config_number(getattr(self, name), name))
+        for name in (
+            "commission_bps",
+            "slippage_bps",
+            "impact_coeff_bps",
+            "min_commission",
+            "borrow_bps_annual",
+        ):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} must be nonnegative")
+        if not 0 < self.participation_cap <= 1:
+            raise ValueError("participation_cap must be within (0, 1]")
+
     @classmethod
     def from_dict(cls, cfg: dict | None) -> CostConfig:
         cfg = cfg or {}
         return cls(
-            commission_bps=float(cfg.get("commission_bps", 2.0)),
-            slippage_bps=float(cfg.get("slippage_bps", 5.0)),
-            impact_coeff_bps=float(cfg.get("impact_coeff_bps", 10.0)),
-            participation_cap=float(cfg.get("participation_cap", 0.10)),
-            min_commission=float(cfg.get("min_commission", 0.0)),
-            borrow_bps_annual=float(cfg.get("borrow_bps_annual", 50.0)),
+            commission_bps=cfg.get("commission_bps", 2.0),
+            slippage_bps=cfg.get("slippage_bps", 5.0),
+            impact_coeff_bps=cfg.get("impact_coeff_bps", 10.0),
+            participation_cap=cfg.get("participation_cap", 0.10),
+            min_commission=cfg.get("min_commission", 0.0),
+            borrow_bps_annual=cfg.get("borrow_bps_annual", 50.0),
         )
 
     def to_dict(self) -> dict:

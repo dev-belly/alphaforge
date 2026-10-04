@@ -45,6 +45,10 @@ gross = bt.gross_equity         # pre-cost curve (cost-drag overlay)
 | `delist_grace_days` | 5 | positive number of dark sessions before force-liquidation |
 | `max_gross_leverage` | 1.0 | finite, positive gross exposure cap |
 
+Session-count settings accept integers or text integers; fractional values and
+booleans are rejected before they can change execution timing or warm-up.
+`min_history_days` is nonnegative and `adv_window` must cover the five-session
+minimum used for ADV. Rebalance names must be one of the five documented cadences.
 `initial_capital` must be finite and positive. `allow_short` accepts a boolean
 or the strings `"true"` and `"false"`; other values are rejected. An expired
 mark cannot silently remove a held position before its liquidation window.
@@ -59,6 +63,12 @@ Sharpe / CAGR / volatility / Sortino / Calmar / MaxDD are reported side by side,
 and `cost_drag_cagr = gross_cagr - net_cagr` states the simulated transaction-cost
 burden in one number. The `gross_equity` curve is shipped for the cost-drag
 overlay in the report.
+
+Commission, slippage, impact, minimum commission and borrowing assumptions must
+be finite and nonnegative; participation caps are within `(0, 1]`. Invalid cost
+assumptions fail before a run rather than crediting NAV. The broker's
+`allow_fractional_shares` accepts booleans or explicit `"true"`/`"false"` strings;
+`"false"` enforces integer fills. Minimum trade value is finite and nonnegative.
 
 > The benchmark is stored as a daily *return* series (the ETL layer converts
 > provider price levels exactly once). `ensure_returns` makes that contract
