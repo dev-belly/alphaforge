@@ -78,8 +78,12 @@ def equity_curve(
     return _fig_to_b64(fig)
 
 
-def drawdown(equity: pd.Series) -> str:
-    curve = equity / equity.cummax() - 1.0
+def drawdown(equity: pd.Series, *, initial_capital: float | None = None) -> str:
+    """Plot drawdowns, including pre-first-session capital when supplied."""
+    peak = equity.cummax()
+    if initial_capital is not None:
+        peak = peak.clip(lower=initial_capital)
+    curve = equity / peak - 1.0
     fig, ax = plt.subplots(figsize=(8, 2.4))
     ax.fill_between(curve.index, curve.to_numpy() * 100, 0, color=RED, alpha=0.35)
     ax.plot(curve.index, curve.to_numpy() * 100, color=RED, lw=0.8)

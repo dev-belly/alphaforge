@@ -212,6 +212,17 @@ def test_drawdown_series_is_non_positive_and_ends_at_zero_peak():
     assert dd.iloc[-1] == pytest.approx(0.0)  # new high -> no drawdown
 
 
+@pytest.mark.parametrize(
+    "returns, expected", [([-0.2, 0.1], [-0.2, -0.12]), ([-1.0, 0.0], [-1.0, -1.0])]
+)
+def test_drawdowns_include_initial_capital_and_first_period_wipeout(returns, expected):
+    r = pd.Series(returns)
+    assert drawdown_series(r).tolist() == pytest.approx(expected)
+    depth, trough = max_drawdown(r)
+    assert depth == pytest.approx(expected[0])
+    assert trough == 0
+
+
 # --------------------------------------------------------------------------
 # expanding_window_index() - walk-forward leakage guard
 # --------------------------------------------------------------------------

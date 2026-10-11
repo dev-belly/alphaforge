@@ -192,6 +192,13 @@ def test_drawdown_is_zero_at_a_new_high(monkeypatch) -> None:
     np.testing.assert_allclose(captured["y"], np.zeros(len(DATES)), atol=1e-12)
 
 
+def test_drawdown_chart_includes_first_session_loss_from_initial_capital(monkeypatch) -> None:
+    equity = pd.Series([80.0, 88.0, 110.0], index=DATES[:3])
+    captured = _capture(monkeypatch, "fill_between")
+    drawdown(equity, initial_capital=100.0)
+    np.testing.assert_allclose(captured["y"], [-20.0, -12.0, 0.0], atol=1e-12)
+
+
 # ----------------------------------------------------------------------
 # ic_series
 # ----------------------------------------------------------------------
