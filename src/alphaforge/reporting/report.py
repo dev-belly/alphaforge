@@ -205,7 +205,11 @@ def build_html(inputs: ReportInputs) -> str:
                 initial_capital=getattr(bt, "config", {}).get("initial_capital"),
             )
         )
-        drawdown_b64 = _img(charts.drawdown(bt.equity))
+        drawdown_b64 = _img(
+            charts.drawdown(
+                bt.equity, initial_capital=getattr(bt, "config", {}).get("initial_capital")
+            )
+        )
         monthly = _safe_monthly(bt.returns)
         monthly_b64 = _img(charts.monthly_heatmap(monthly))
         if bt.metrics:

@@ -471,6 +471,19 @@ def test_the_drawdown_table_is_empty_for_an_empty_series():
     assert drawdown_table(pd.Series(dtype=float)).empty
 
 
+def test_first_period_loss_reconciles_summary_rolling_series_and_episodes():
+    r = pd.Series([-0.2, 0.1, 0.25], index=pd.date_range("2020-01-31", periods=3, freq="ME"))
+    stats = performance_stats(r)
+    assert stats["max_drawdown"] == pytest.approx(-0.2)
+    assert stats["max_drawdown_date"] == "2020-01-31"
+    assert stats["max_drawdown_duration_days"] == 2
+    assert rolling_metrics(r, window=2)["drawdown"].tolist() == pytest.approx([-0.2, -0.12, 0.0])
+    episode = drawdown_table(r).iloc[0]
+    assert episode["depth"] == pytest.approx(stats["max_drawdown"])
+    assert episode["start"] == episode["trough"] == "2020-01-31"
+    assert episode["end"] == "2020-03-31"
+
+
 # --------------------------------------------------------------------------
 # summarise
 # --------------------------------------------------------------------------

@@ -29,6 +29,7 @@ import numpy as np
 import pytest
 import yaml
 
+import alphaforge.utils.config as config_module
 from alphaforge.utils.config import (
     DEFAULT_CONFIG_PATH,
     Config,
@@ -39,6 +40,26 @@ from alphaforge.utils.config import (
     load_yaml,
     set_global_seed,
 )
+
+
+def test_bundled_defaults_match_the_authoritative_checkout_config():
+    assert config_module.PACKAGED_CONFIG_PATH.read_bytes() == DEFAULT_CONFIG_PATH.read_bytes()
+
+
+def test_default_settings_work_without_checkout_and_explicit_paths_still_fail(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(config_module, "PROJECT_ROOT", tmp_path)
+    bundled = Config.load()
+    assert bundled.get("project.seed") == 42
+    assert bundled.get("data.provider") == "sample"
+    with pytest.raises(FileNotFoundError, match="Config file not found"):
+        Config.load(tmp_path / "missing.yaml")
+    checkout = tmp_path / "configs" / "default.yaml"
+    checkout.parent.mkdir()
+    checkout.write_text("project:\n  seed: 7\n", encoding="utf-8")
+    assert Config.load().get("project.seed") == 7
+
 
 ENV_MAPPING = {
     "ALPHAFORGE_DATA_PROVIDER": "data.provider",

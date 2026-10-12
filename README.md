@@ -86,6 +86,20 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[api,dashboard,viz,dev]"
 ```
 
+On Windows PowerShell, use the environment directly (activation is optional):
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[api,dashboard,viz,dev]"
+.\.venv\Scripts\alphaforge.exe --help
+```
+
+Use a short checkout path such as `C:\src\alphaforge` when Windows long-path
+support is disabled; recent Streamlit packages contain deeply nested resources.
+Wheel installs include the default settings. Editable checkouts continue to use
+`configs/default.yaml`; `--config` selects an explicit file. CI checks Ubuntu
+Python 3.10–3.12 and Windows Python 3.12; the full pipeline/API job runs on Ubuntu.
+
 ## Quick start
 
 Run the full pipeline from the CLI:
@@ -566,6 +580,10 @@ Anything that cannot be exercised for real is exercised against fakes instead:
   **undefined** Calmar rather than an infinite one, a zero-variance series does
   not divide by zero, an empty series reports an error instead of raising, and
   relative stats need three overlapping points before beta means anything.
+  Drawdowns include the initial capital: a first-period loss of 20% followed
+  by a 10% gain still has a 20% maximum drawdown and ends 12% below its starting
+  wealth. Summary statistics, rolling metrics, episode tables and report charts
+  share that baseline; an immediate wipeout remains a 100% drawdown.
   The gross-vs-net reconciliation gets its own identity test - the docstring
   claims the additive cost add-back recovers the gross series *exactly*, and it
   does, but only because the engine compounds the pre-cost NAV from the

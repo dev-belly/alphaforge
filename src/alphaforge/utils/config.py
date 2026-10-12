@@ -16,7 +16,16 @@ from alphaforge.utils.logging import get_logger
 log = get_logger("config")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "default.yaml"
+PACKAGED_CONFIG_PATH = Path(__file__).resolve().parents[1] / "resources" / "default.yaml"
+
+
+def _default_config_path() -> Path:
+    """Prefer editable checkout settings, with bundled defaults for wheels."""
+    checkout = PROJECT_ROOT / "configs" / "default.yaml"
+    return checkout if checkout.is_file() else PACKAGED_CONFIG_PATH
+
+
+DEFAULT_CONFIG_PATH = _default_config_path()
 
 
 def config_integer(value: Any, name: str) -> int:
@@ -92,7 +101,7 @@ class Config:
     def load(
         cls, path: str | Path | None = None, overrides: dict[str, Any] | None = None
     ) -> Config:
-        path = Path(path) if path else DEFAULT_CONFIG_PATH
+        path = Path(path) if path else _default_config_path()
         raw = load_yaml(path)
         raw = deep_merge(raw, overrides or {})
         raw = deep_merge(raw, _env_overrides())

@@ -229,9 +229,7 @@ def compound(returns: pd.Series) -> pd.Series:
 
 
 def max_drawdown(returns: pd.Series) -> tuple[float, pd.Timestamp | None]:
-    curve = compound(returns)
-    running_max = curve.cummax()
-    dd = curve / running_max - 1.0
+    dd = drawdown_series(returns)
     if dd.empty:
         return 0.0, None
     trough = dd.idxmin()
@@ -239,8 +237,12 @@ def max_drawdown(returns: pd.Series) -> tuple[float, pd.Timestamp | None]:
 
 
 def drawdown_series(returns: pd.Series) -> pd.Series:
+    """Drawdown from prior peaks, including the initial unit of capital."""
     curve = compound(returns)
-    return curve / curve.cummax() - 1.0
+    # Without the initial wealth of 1, a first-period loss becomes the first
+    # peak and vanishes from every drawdown statistic. The floor also makes an
+    # immediate wipeout a -100% drawdown instead of 0/0.
+    return curve / curve.cummax().clip(lower=1.0) - 1.0
 
 
 # --------------------------------------------------------------------------

@@ -69,7 +69,7 @@ where = ["src"]
 alphaforge = "alphaforge.cli:main"
 
 [tool.setuptools.package-data]
-alphaforge = ["py.typed"]
+alphaforge = ["py.typed", "resources/default.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

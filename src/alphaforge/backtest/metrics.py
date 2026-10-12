@@ -282,9 +282,7 @@ def drawdown_table(returns: pd.Series, top: int = 5) -> pd.DataFrame:
     r = returns.dropna()
     if r.empty:
         return pd.DataFrame()
-    curve = compound(r)
-    peak = curve.cummax()
-    dd = curve / peak - 1.0
+    dd = drawdown_series(r)
 
     episodes = []
     in_dd = False
