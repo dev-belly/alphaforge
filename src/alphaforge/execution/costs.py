@@ -101,7 +101,17 @@ class TradeCost:
 
     @property
     def total(self) -> float:
-        return self.commission + self.slippage + self.impact
+        total = self.commission + self.slippage + self.impact
+        if not np.isfinite([self.commission, self.slippage, self.impact, total]).all():
+            raise ValueError("Transaction cost components and total must be finite")
+        if min(self.commission, self.slippage, self.impact) < 0:
+            raise ValueError("Transaction cost components must be nonnegative")
+        return total
+
+
+def _currency_cost(value: float, bps: float) -> float:
+    """Scale the larger factor first, avoiding an unnecessary intermediate overflow."""
+    return (value / 10_000.0) * bps if value >= bps else value * (bps / 10_000.0)
 
 
 class CostModel:
@@ -128,13 +138,18 @@ class CostModel:
         """Cost of trading ``trade_value`` (signed) against ``adv_value`` of ADV."""
         cfg = self.config
         value = abs(float(trade_value))
+        if not np.isfinite(value):
+            raise ValueError("trade_value must be finite")
         if value <= 0:
             return TradeCost(0.0, 0.0, 0.0)
         participation = self.participation(value, adv_value)
-        commission = max(value * cfg.commission_bps / 10_000.0, cfg.min_commission)
-        slippage = value * cfg.slippage_bps / 10_000.0
-        impact = value * self.impact_bps(participation) / 10_000.0
-        return TradeCost(commission=commission, slippage=slippage, impact=impact)
+        commission = max(_currency_cost(value, cfg.commission_bps), cfg.min_commission)
+        slippage = _currency_cost(value, cfg.slippage_bps)
+        impact = _currency_cost(value, self.impact_bps(participation))
+        cost = TradeCost(commission=commission, slippage=slippage, impact=impact)
+        # Validate even callers that only inspect one of the returned components.
+        _ = cost.total
+        return cost
 
     def estimate_frame(self, trade_values: pd.Series, adv_values: pd.Series) -> pd.DataFrame:
         """Vectorised cost estimate; returns a frame of currency costs."""

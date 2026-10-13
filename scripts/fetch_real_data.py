@@ -44,6 +44,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from alphaforge.data.assurance import write_mirror_assurance  # noqa: E402
 from alphaforge.data.providers.base import (  # noqa: E402
     CONSTITUENT_COLUMNS,
     MACRO_COLUMNS,
@@ -80,7 +81,7 @@ RATIOS_URL = (
 #   spy        2000-01-03 -> 2019-11-14
 # The benchmark is the binding constraint, so the default build starts in 2000.
 DEFAULT_START = "2000-01-01"
-DEFAULT_END = "2019-12-31"
+DEFAULT_END = "2019-11-14"
 
 
 @dataclass
@@ -426,6 +427,8 @@ def main(argv: list[str] | None = None) -> int:
         help="never hit the network; fail if a cached copy is missing",
     )
     args = ap.parse_args(argv)
+    if args.lag_days < 0:
+        ap.error("--lag-days must be nonnegative")
 
     if args.offline:
         missing = [
@@ -494,6 +497,26 @@ def main(argv: list[str] | None = None) -> int:
         members,
         stats,
         fundamentals,
+        args.lag_days,
+    )
+    raw_sources = {
+        name: RAW_DIR / name
+        for name in (
+            "sp500_daily.parquet",
+            "sp500_constituents.parquet",
+            "spy_daily.jsonl",
+            "sp500_daily_ratios.zip",
+        )
+    }
+    write_mirror_assurance(
+        PROCESSED_DIR,
+        raw_sources,
+        {
+            "prices": PRICES_URL,
+            "constituents": CONSTITUENTS_URL,
+            "benchmark": BENCHMARK_URL,
+            "fundamentals": RATIOS_URL,
+        },
         args.lag_days,
     )
 

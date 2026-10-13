@@ -23,7 +23,7 @@ data:
   provider: local
   universe: SP500
   start_date: "2000-01-01"
-  end_date: "2019-12-31"
+  end_date: "2019-11-14"
   cache_dir: data/processed
   raw_dir: data/raw
   storage_backend: parquet
@@ -88,7 +88,7 @@ risk:
 
 backtest:
   start_date: "2005-01-01"
-  end_date: "2019-12-31"
+  end_date: "2019-11-14"
   rebalance: monthly
   initial_capital: 10_000_000
   execution_lag_days: 1
@@ -103,7 +103,7 @@ cost:
   min_commission: 0.0
 
 reporting:
-  output_dir: research/reports
+  output_dir: research/real_runs/report
   figure_dpi: 130
   figure_format: png
 

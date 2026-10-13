@@ -1,0 +1,10 @@
+{
+  "dataset_sha256": "8906ace6a84d22bdc78a05fedcd75498d964dd56555da00492892f5eb7a9a7cd",
+  "files_sha256": {
+    "daily_returns.csv.gz": "87eb8aeee44cd396844433d06cc0b3d937041c9710d55e1418acebc2d6b09ede",
+    "folds.csv": "8ae472f7117df46258db54cfff3a5bb349df99e04fdeceb1e3ce37a7c8ac88df",
+    "index.html": "aa9003c9a31717baafba4838c7955ed62ec63ca76e424a518af4cb6e8b44ac2e",
+    "metrics.csv": "41b0d117631aa0613d0d054b817a959c3792079ec775ea3c73a409265d89d106",
+    "summary.json": "8f51affb4f487f9cb25995e89de91d831b5e2e4933ea69495478d4883066a2fb"
+  }
+}

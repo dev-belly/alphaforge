@@ -1,5 +1,10 @@
 # AlphaForge
 
+[Real-market comparison](docs/research-comparison.md): frozen data, shared
+walk-forward coverage, equal-weight and momentum baselines, three model seeds,
+one explicit size-feature ablation, and 22 base/doubled-cost cases. Source
+history and availability limitations keep this experiment exploratory.
+
 **Python toolkit for factor research, portfolio construction, and backtesting**
 
 [![CI](https://github.com/dev-belly/alphaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/dev-belly/alphaforge/actions/workflows/ci.yml)

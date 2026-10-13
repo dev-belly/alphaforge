@@ -214,18 +214,24 @@ def compound(returns: pd.Series) -> pd.Series:
     long horizons — a naive ``cumprod`` silently leaves the float64 range
     (overflowing to ``inf`` or underflowing to ``0``) on multi-thousand-session
     backtests, which then poisons every downstream statistic (CAGR, drawdown,
-    Sharpe) with ``nan`` instead of a number.
+    Sharpe) with ``nan`` instead of a number. Nonfinite returns, losses below
+    -100%, and wealth outside the finite float range are rejected. A -100%
+    return is a legal, absorbing zero-wealth boundary; missing returns retain
+    the existing flat-period convention.
 
     The input must be *returns*, not return spreads. See
     :func:`alphaforge.backtest.metrics._relative_stats` for the trap this guards.
     """
     r = returns.fillna(0.0).to_numpy(dtype=float)
-    with np.errstate(divide="ignore", invalid="ignore"):
+    if not np.isfinite(r).all() or (r < -1.0).any():
+        raise ValueError("returns must be finite and at least -1")
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
         log_growth = np.log1p(r)
-    # r <= -1 means the position is wiped out; clamp to zero wealth rather than
-    # propagating inf/nan through the whole curve.
-    log_growth = np.where(np.isfinite(log_growth), log_growth, -np.inf)
-    return pd.Series(np.exp(np.cumsum(log_growth)), index=returns.index, name=returns.name)
+        wealth = np.exp(np.cumsum(log_growth))
+    wiped_out = np.logical_or.accumulate(r == -1.0)
+    if not np.isfinite(wealth).all() or ((wealth == 0.0) & ~wiped_out).any():
+        raise ValueError("Compounded wealth must be finite and representable")
+    return pd.Series(wealth, index=returns.index, name=returns.name)
 
 
 def max_drawdown(returns: pd.Series) -> tuple[float, pd.Timestamp | None]:

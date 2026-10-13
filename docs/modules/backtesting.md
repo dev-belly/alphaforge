@@ -70,6 +70,18 @@ assumptions fail before a run rather than crediting NAV. The broker's
 `allow_fractional_shares` accepts booleans or explicit `"true"`/`"false"` strings;
 `"false"` enforces integer fills. Minimum trade value is finite and nonnegative.
 
+Large finite notionals and basis-point rates are scaled before multiplying so
+a representable fee does not overflow only because of the calculation order.
+Nonfinite trade values, unrepresentable cost components or totals, and fees
+greater than the available NAV raise `ValueError`. The engine applies the same
+fee boundary to custom brokers and forced liquidation. Fees equal to NAV are
+allowed: they produce a zero-capital bankruptcy, with zero subsequent returns.
+That boundary is absorbing; a later price recovery cannot recreate capital.
+Negative or nonfinite NAV and nonfinite reconstructed gross NAV are rejected.
+Finite positive NAV that rounds to a -100% daily return is also rejected, as
+the exported float return cannot represent that remaining wealth. Execution
+rejects share quantities outside the finite float range.
+
 > The benchmark is stored as a daily *return* series (the ETL layer converts
 > provider price levels exactly once). `ensure_returns` makes that contract
 > explicit: a return series is never double-differenced (an earlier bug turned a
@@ -92,6 +104,11 @@ implementations differ:
   strategy returns on excess benchmark returns, annualised from the intercept.
 * Annualisation is **inferred from the index**, never assumed, and reported
   alongside the numbers that depend on it.
+
+Compounded wealth rejects infinite returns, returns below -100%, and a curve
+outside the finite float range instead of treating them as a successful run or
+a fabricated wipeout. A return of exactly -100% legally reduces wealth to zero.
+Missing returns retain the existing flat-period convention.
 
 ## Output — `BacktestResult`
 

@@ -1,0 +1,2 @@
+# Frozen evidence is hashed as bytes; checkouts must not rewrite line endings.
+docs/experiments/real-sp500/** -text

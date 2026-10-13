@@ -1,10 +1,8 @@
 """Run the full AlphaForge stack on the **real** S&P 500 dataset.
 
-This is the script that produces the numbers in ``research/case_study.md``.
-Nothing here is hard-coded: every figure in the case study is read back from
-the returned :class:`~alphaforge.pipeline.ResearchState` and dumped to
-``research/case_study_data.json``, so the narrative and the engine can never
-drift apart.
+Runs are exploratory when historical membership, filing dates or actual market
+capitalization are unavailable. Output is kept in ``research/real_runs`` so a
+real-data experiment cannot silently replace the published synthetic case.
 
 Prerequisites::
 
@@ -28,6 +26,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import pandas as pd  # noqa: E402
 
+from alphaforge.data.assurance import audit_local_dataset  # noqa: E402
 from alphaforge.pipeline import ResearchPipeline  # noqa: E402
 from alphaforge.utils.config import Config  # noqa: E402
 from alphaforge.utils.logging import configure_logging, get_logger  # noqa: E402
@@ -37,7 +36,7 @@ log = get_logger("run_real_research")
 
 CONFIG_PATH = REPO_ROOT / "configs" / "real_sp500.yaml"
 DATA_DIR = REPO_ROOT / "data" / "processed"
-OUT_JSON = REPO_ROOT / "research" / "case_study_data.json"
+OUT_JSON = REPO_ROOT / "research" / "real_runs" / "case_study_data.json"
 
 
 def _require_dataset() -> None:
@@ -143,10 +142,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--start", default=None)
     ap.add_argument("--end", default=None)
-    ap.add_argument("--report-dir", default=str(REPO_ROOT / "research" / "reports"))
+    ap.add_argument("--report-dir", default=str(REPO_ROOT / "research" / "real_runs" / "report"))
+    ap.add_argument("--out-json", type=Path, default=OUT_JSON)
+    ap.add_argument(
+        "--require-complete-sources",
+        action="store_true",
+        help="reject incomplete universe, assumed filing dates or proxy market cap",
+    )
     ap.add_argument("--no-json", action="store_true", help="skip writing case_study_data.json")
     args = ap.parse_args(argv)
 
+    if Path.cwd().resolve() != REPO_ROOT.resolve():
+        raise SystemExit(f"Run real-data research from the repository root: {REPO_ROOT}")
     _require_dataset()
 
     overrides: dict = {}
@@ -156,6 +163,15 @@ def main(argv: list[str] | None = None) -> int:
         overrides.setdefault("portfolio", {})["method"] = args.method
 
     cfg = Config.load(args.config, overrides=overrides)
+    if cfg.get("data.provider") != "local":
+        raise ValueError("This real-data script requires a local dataset with a source contract")
+    assurance = audit_local_dataset(
+        DATA_DIR,
+        args.start or cfg.get("data.start_date"),
+        args.end or cfg.get("data.end_date"),
+        require_complete_sources=args.require_complete_sources,
+    )
+    cfg.raw.setdefault("data", {})["assurance"] = assurance
     log.info(f"Running real-data research with provider={cfg.get('data.provider')}")
     state = ResearchPipeline(cfg).run(
         start=args.start,
@@ -165,17 +181,21 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     payload = collect(state, cfg.raw)
+    payload["data_assurance"] = assurance
 
     if not args.no_json:
-        OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
-        OUT_JSON.write_text(json.dumps(payload, indent=2, default=str))
-        log.info(f"wrote {OUT_JSON.relative_to(REPO_ROOT)}")
+        args.out_json.parent.mkdir(parents=True, exist_ok=True)
+        args.out_json.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        log.info(f"wrote {args.out_json}")
 
     # -- console summary -------------------------------------------------
     bt = state.backtest
     s = bt.summary() if bt is not None else {}
     print("\n" + "=" * 72)
     print("ALPHAFORGE · REAL-DATA RESEARCH RUN")
+    print(f"Source status : {assurance['status']}")
+    for limitation in assurance["limitations"]:
+        print(f"  - {limitation}")
     print("=" * 72)
     m = payload["meta"]
     print(
@@ -206,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 72)
     if state.report_path:
         print(f"HTML report   : {state.report_path}")
-    print("Case study in : research/case_study.md (regenerate narrative from the JSON above)")
+    print("The published synthetic case study is separate from this exploratory real-data run.")
     return 0
 
 

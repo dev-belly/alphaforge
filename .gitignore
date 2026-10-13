@@ -56,3 +56,6 @@ data/processed/*
 .pytest_tmp/
 # MkDocs build output
 site/
+outputs/
+research/real_runs/
+research/comparison/
