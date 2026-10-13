@@ -339,8 +339,12 @@ class ResearchPipeline:
         q = state.config.get("data", {})
         if q.get("survivorship_bias_disclaimer"):
             notes.append(
-                "Survivorship bias disclaimer is ON: the sample provider supplies point-in-time membership only."
+                "Survivorship bias: source coverage is incomplete when current-member datasets omit historical removals."
             )
+        assurance = q.get("assurance", {})
+        if assurance:
+            notes.append(f"Source contract status: {assurance.get('status', 'unknown')}.")
+            notes.extend(assurance.get("limitations", []))
         if state.backtest is not None:
             diag = state.backtest.diagnostics
             notes.append(
