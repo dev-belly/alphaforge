@@ -330,6 +330,11 @@ Models, the fixed momentum baseline and equal-weight baseline share dates, outco
     return summary
 
 
+def _comparison_case_key(row):
+    seed = None if pd.isna(row["seed"]) else row["seed"]
+    return row["method"], seed, row["cost_multiplier"]
+
+
 def verify_comparison(directory: str | Path):
     """Recompute portfolio headlines from exported returns, without fitting models."""
     directory = Path(directory)
@@ -341,16 +346,32 @@ def verify_comparison(directory: str | Path):
         if hashlib.sha256((directory / name).read_bytes()).hexdigest() != expected:
             raise ValueError(f"Comparison artifact digest mismatch: {name}")
     summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+    dataset_sha256 = manifest.get("dataset_sha256")
+    if not isinstance(dataset_sha256, str) or summary.get("dataset_sha256") != dataset_sha256:
+        raise ValueError("Comparison dataset identity mismatch")
     daily = pd.read_csv(directory / "daily_returns.csv.gz")
     daily["date"] = pd.to_datetime(daily["date"])
     if not np.isfinite(daily[["net_return", "gross_return"]].to_numpy()).all():
         raise ValueError("Nonfinite comparison returns")
     grouped = daily.groupby(["method", "seed", "cost_multiplier"], dropna=False, sort=False)
-    if len(grouped) != len(summary["cases"]):
+    case_keys = [_comparison_case_key(case) for case in summary["cases"]]
+    daily_keys = {
+        _comparison_case_key(row)
+        for row in daily[["method", "seed", "cost_multiplier"]].drop_duplicates().to_dict("records")
+    }
+    if (
+        not case_keys
+        or len(set(case_keys)) != len(case_keys)
+        or set(case_keys) != daily_keys
+        or len(grouped) != len(case_keys)
+    ):
         raise ValueError("Comparison case coverage mismatch")
     shared_dates = None
     verified_cases = []
     metrics = pd.read_csv(directory / "metrics.csv")
+    metric_keys = [_comparison_case_key(row) for row in metrics.to_dict("records")]
+    if len(set(metric_keys)) != len(metric_keys) or set(metric_keys) != set(case_keys):
+        raise ValueError("Comparison metrics CSV coverage mismatch")
     for case in summary["cases"]:
         rows = daily[
             (daily["method"] == case["method"])
@@ -383,12 +404,21 @@ def verify_comparison(directory: str | Path):
             raise ValueError("Comparison metrics CSV coverage mismatch")
         for key in ("cagr", "sharpe", "max_drawdown", "ann_vol", "total_return"):
             for title, computed in ((key, actual[key]), ("gross_" + key, gross[key])):
-                if title not in case:
-                    continue
+                if title not in case or title not in metrics.columns:
+                    raise ValueError(f"Missing required comparison headline: {title}")
+                try:
+                    computed_value = float(computed)
+                    stated_value = float(case[title])
+                    csv_value = float(stated_csv.iloc[0][title])
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"Comparison {title} must be finite") from exc
+                if not all(
+                    math.isfinite(value) for value in (computed_value, stated_value, csv_value)
+                ):
+                    raise ValueError(f"Comparison {title} must be finite")
                 if (
-                    not math.isfinite(float(case[title]))
-                    or abs(computed - case[title]) > 1e-8
-                    or abs(computed - float(stated_csv.iloc[0][title])) > 1e-8
+                    abs(computed_value - stated_value) > 1e-8
+                    or abs(computed_value - csv_value) > 1e-8
                 ):
                     raise ValueError(f"Comparison {title} disagrees with exported returns")
         verified_cases.append(
@@ -400,6 +430,13 @@ def verify_comparison(directory: str | Path):
             }
         )
     verified = pd.DataFrame(verified_cases)
+    aggregate_keys = [(row["method"], row["cost_multiplier"]) for row in summary["aggregates"]]
+    expected_aggregate_keys = {(method, multiplier) for method, _seed, multiplier in case_keys}
+    if (
+        len(set(aggregate_keys)) != len(aggregate_keys)
+        or set(aggregate_keys) != expected_aggregate_keys
+    ):
+        raise ValueError("Comparison aggregate coverage mismatch")
     for stated in summary["aggregates"]:
         group = verified[
             (verified["method"] == stated["method"])
@@ -408,10 +445,16 @@ def verify_comparison(directory: str | Path):
         if len(group) != stated["runs"]:
             raise ValueError("Comparison aggregate run count mismatch")
         for key in ("cagr", "sharpe", "max_drawdown"):
-            if (
-                abs(float(group[key].mean()) - stated[key + "_mean"]) > 1e-8
-                or abs(float(group[key].std(ddof=0)) - stated[key + "_std"]) > 1e-8
+            try:
+                actual_mean, actual_std = float(group[key].mean()), float(group[key].std(ddof=0))
+                stated_mean, stated_std = float(stated[key + "_mean"]), float(stated[key + "_std"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("Comparison aggregates must be finite") from exc
+            if not all(
+                math.isfinite(value) for value in (actual_mean, actual_std, stated_mean, stated_std)
             ):
+                raise ValueError("Comparison aggregates must be finite")
+            if abs(actual_mean - stated_mean) > 1e-8 or abs(actual_std - stated_std) > 1e-8:
                 raise ValueError("Comparison aggregates disagree with exported returns")
     assert shared_dates is not None
     return {

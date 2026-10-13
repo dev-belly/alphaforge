@@ -152,6 +152,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-json", action="store_true", help="skip writing case_study_data.json")
     args = ap.parse_args(argv)
 
+    if Path.cwd().resolve() != REPO_ROOT.resolve():
+        raise SystemExit(f"Run real-data research from the repository root: {REPO_ROOT}")
     _require_dataset()
 
     overrides: dict = {}

@@ -112,6 +112,9 @@ class BrokerSimulator:
             Average daily traded value, used for participation and impact.
         """
         cfg = self.config
+        nav = float(nav)
+        if not np.isfinite(nav) or nav < 0:
+            raise ValueError("NAV must be finite and nonnegative")
         target = target_weights.astype(float)
         current = (
             current_weights.reindex(target.index).fillna(0.0).astype(float)
@@ -119,6 +122,8 @@ class BrokerSimulator:
             else pd.Series(0.0, index=target.index)
         )
         current = current.reindex(target.index).fillna(0.0)
+        if not np.isfinite(target.to_numpy()).all() or not np.isfinite(current.to_numpy()).all():
+            raise ValueError("Target and current weights must be finite")
 
         px = prices.reindex(target.index)
         # Cash drag: the analyser wants to see it, but it is not an order.
@@ -170,6 +175,13 @@ class BrokerSimulator:
             )
 
         costs = self.cost_model.estimate_frame(active, adv)
+        with np.errstate(over="ignore"):
+            cost_total = float(costs["cost_total"].sum())
+            traded_notional = float(active.abs().sum())
+        if not np.isfinite(cost_total) or cost_total < 0 or cost_total > nav:
+            raise ValueError("Transaction cost must be finite, nonnegative and cannot exceed NAV")
+        if not np.isfinite(traded_notional):
+            raise ValueError("Traded notional must be finite")
         participation = [
             self.cost_model.participation(v, a)
             for v, a in zip(
@@ -183,6 +195,13 @@ class BrokerSimulator:
             )
         ]
 
+        with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
+            traded_shares = active.to_numpy(dtype=float) / px.reindex(active.index).to_numpy(
+                dtype=float
+            )
+        if not np.isfinite(traded_shares).all():
+            raise ValueError("Traded shares must be finite and representable")
+
         trades = pd.DataFrame(
             {
                 "side": np.where(active.to_numpy(dtype=float) > 0, "BUY", "SELL"),
@@ -191,24 +210,25 @@ class BrokerSimulator:
                 "target_weight": effective_target.reindex(active.index).to_numpy(dtype=float),
                 "trade_weight": active.to_numpy(dtype=float) / float(nav),
                 "trade_value": active.to_numpy(dtype=float),
-                "shares": active.to_numpy(dtype=float)
-                / px.reindex(active.index).to_numpy(dtype=float),
+                "shares": traded_shares,
                 "participation": participation,
                 "days_to_complete": days_needed,
                 **{k: costs[k].to_numpy(dtype=float) for k in costs.columns},
             },
             index=active.index,
         )
-        cost_total = float(trades["cost_total"].sum())
-        traded_notional = float(trades["trade_value"].abs().sum())
-
         # Post-trade book: target weights, with costs taken out of NAV. The
         # weight vector is what the portfolio holds; the cash deduction shows up
         # in NAV, so weights are re-expressed on the smaller NAV.
         realised_weights = current.add(trade_weight, fill_value=0.0)
         nav_after = float(nav) - cost_total
         if nav_after > 0 and abs(float(nav)) > 0:
-            realised_weights = realised_weights * (float(nav) / nav_after)
+            with np.errstate(over="ignore", invalid="ignore"):
+                realised_weights = realised_weights * (float(nav) / nav_after)
+            if not np.isfinite(realised_weights.to_numpy()).all():
+                raise ValueError("Post-cost weights must be finite")
+        elif nav_after == 0:
+            realised_weights = pd.Series(0.0, index=current.index)
 
         log.debug(
             f"rebalance: {len(trades)} orders | turnover {trades['trade_weight'].abs().sum():.3f} | "

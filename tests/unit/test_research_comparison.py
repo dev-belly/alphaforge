@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +13,39 @@ import pytest
 
 from alphaforge.comparison import ranked_weights, validate_coverage, verify_comparison
 from alphaforge.data.assurance import audit_local_dataset, write_mirror_assurance
+
+HEADLINES = (
+    "cagr",
+    "sharpe",
+    "max_drawdown",
+    "ann_vol",
+    "total_return",
+    "gross_cagr",
+    "gross_sharpe",
+    "gross_max_drawdown",
+    "gross_ann_vol",
+    "gross_total_return",
+)
+
+
+@pytest.fixture
+def saved_comparison(tmp_path):
+    saved = Path(__file__).parents[2] / "docs/experiments/real-sp500"
+    destination = tmp_path / "comparison"
+    shutil.copytree(saved, destination)
+    return destination
+
+
+def rehash_artifact(directory, name):
+    manifest_path = directory / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files_sha256"][name] = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def write_summary(directory, summary):
+    (directory / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    rehash_artifact(directory, "summary.json")
 
 
 def source_bundle(root):
@@ -91,3 +126,126 @@ def test_saved_return_evidence_detects_rehashed_financial_headline(tmp_path):
     manifest_path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="cagr disagrees"):
         verify_comparison(destination)
+
+
+@pytest.mark.parametrize("autocrlf", ["false", "true"])
+@pytest.mark.parametrize("eol", ["lf", "crlf"])
+def test_frozen_evidence_survives_git_checkout_line_ending_settings(tmp_path, autocrlf, eol):
+    root = Path(__file__).parents[2]
+    relative = Path("docs/experiments/real-sp500")
+    repository = tmp_path / "repository"
+    checkout = tmp_path / "checkout"
+    repository.mkdir()
+    shutil.copytree(root / relative, repository / relative)
+    shutil.copyfile(root / ".gitattributes", repository / ".gitattributes")
+    subprocess.run(["git", "init", "-q"], cwd=repository, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "core.autocrlf=false", "add", "."],
+        cwd=repository,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            f"core.autocrlf={autocrlf}",
+            "-c",
+            f"core.eol={eol}",
+            "checkout-index",
+            "--all",
+            "--force",
+            f"--prefix={checkout.as_posix()}/",
+        ],
+        cwd=repository,
+        check=True,
+        capture_output=True,
+    )
+    manifest = json.loads((root / relative / "manifest.json").read_text())
+    for name in ("manifest.json", *manifest["files_sha256"]):
+        assert (checkout / relative / name).read_bytes() == (root / relative / name).read_bytes()
+    assert verify_comparison(checkout / relative)["cases"] == 22
+
+
+def test_saved_evidence_rejects_line_ending_changes_without_rehashing(tmp_path):
+    saved = Path(__file__).parents[2] / "docs/experiments/real-sp500"
+    destination = tmp_path / "comparison"
+    shutil.copytree(saved, destination)
+    path = destination / "folds.csv"
+    path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+    with pytest.raises(ValueError, match="artifact digest mismatch: folds.csv"):
+        verify_comparison(destination)
+
+
+@pytest.mark.parametrize("title", HEADLINES)
+def test_rehashed_nan_metrics_csv_cannot_bypass_headline_comparison(saved_comparison, title):
+    path = saved_comparison / "metrics.csv"
+    metrics = pd.read_csv(path)
+    metrics.loc[0, title] = float("nan")
+    metrics.to_csv(path, index=False, lineterminator="\n")
+    rehash_artifact(saved_comparison, "metrics.csv")
+    with pytest.raises(ValueError, match=f"{title} must be finite"):
+        verify_comparison(saved_comparison)
+
+
+@pytest.mark.parametrize("title", HEADLINES)
+def test_rehashed_missing_case_headline_cannot_skip_verification(saved_comparison, title):
+    summary = json.loads((saved_comparison / "summary.json").read_text(encoding="utf-8"))
+    del summary["cases"][0][title]
+    write_summary(saved_comparison, summary)
+    with pytest.raises(ValueError, match=f"Missing required comparison headline: {title}"):
+        verify_comparison(saved_comparison)
+
+
+@pytest.mark.parametrize("metric", ["cagr", "sharpe", "max_drawdown"])
+@pytest.mark.parametrize("stat", ["mean", "std"])
+def test_rehashed_nan_aggregates_cannot_bypass_comparison(saved_comparison, metric, stat):
+    summary = json.loads((saved_comparison / "summary.json").read_text(encoding="utf-8"))
+    summary["aggregates"][0][f"{metric}_{stat}"] = float("nan")
+    write_summary(saved_comparison, summary)
+    with pytest.raises(ValueError, match="aggregates must be finite"):
+        verify_comparison(saved_comparison)
+
+
+def test_rehashed_summary_must_match_manifest_dataset_identity(saved_comparison):
+    summary = json.loads((saved_comparison / "summary.json").read_text(encoding="utf-8"))
+    summary["dataset_sha256"] = "0" * 64
+    write_summary(saved_comparison, summary)
+    with pytest.raises(ValueError, match="dataset identity mismatch"):
+        verify_comparison(saved_comparison)
+
+
+def test_rehashed_duplicate_deterministic_seed_cannot_replace_a_case(saved_comparison):
+    summary = json.loads((saved_comparison / "summary.json").read_text(encoding="utf-8"))
+    indices = [
+        index
+        for index, case in enumerate(summary["cases"])
+        if case["method"] == "ridge" and case["cost_multiplier"] == 1.0
+    ]
+    summary["cases"][indices[1]] = copy.deepcopy(summary["cases"][indices[0]])
+    write_summary(saved_comparison, summary)
+    with pytest.raises(ValueError, match="case coverage mismatch"):
+        verify_comparison(saved_comparison)
+
+
+def test_rehashed_unused_metrics_row_is_rejected(saved_comparison):
+    path = saved_comparison / "metrics.csv"
+    metrics = pd.read_csv(path)
+    extra = metrics.iloc[[0]].copy()
+    extra["seed"] = 777
+    pd.concat([metrics, extra], ignore_index=True).to_csv(path, index=False, lineterminator="\n")
+    rehash_artifact(saved_comparison, "metrics.csv")
+    with pytest.raises(ValueError, match="metrics CSV coverage mismatch"):
+        verify_comparison(saved_comparison)
+
+
+@pytest.mark.parametrize("change", ["missing", "duplicate"])
+def test_rehashed_aggregate_inventory_must_match_all_cases(saved_comparison, change):
+    summary = json.loads((saved_comparison / "summary.json").read_text(encoding="utf-8"))
+    if change == "missing":
+        summary["aggregates"].pop()
+    else:
+        summary["aggregates"].append(copy.deepcopy(summary["aggregates"][0]))
+    write_summary(saved_comparison, summary)
+    with pytest.raises(ValueError, match="aggregate coverage mismatch"):
+        verify_comparison(saved_comparison)

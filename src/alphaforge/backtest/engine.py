@@ -40,11 +40,29 @@ from alphaforge.execution.costs import CostModel
 from alphaforge.features.panel import MarketPanel
 from alphaforge.utils.config import config_boolean, config_integer, config_number
 from alphaforge.utils.logging import Timer, get_logger
-from alphaforge.utils.math_utils import ensure_returns
+from alphaforge.utils.math_utils import compound, ensure_returns
 
 log = get_logger("backtest.engine")
 
 WeightFn = Callable[[pd.Timestamp, pd.Series | None], pd.Series | None]
+
+
+def _checked_nav(nav: float) -> float:
+    if not np.isfinite(nav) or nav < 0:
+        raise ValueError("NAV must be finite and nonnegative")
+    return nav
+
+
+def _checked_cost(cost: float, nav: float) -> None:
+    if not np.isfinite(cost) or cost < 0 or cost > nav:
+        raise ValueError("Transaction cost must be finite, nonnegative and cannot exceed NAV")
+
+
+def _daily_return(nav: float, previous: float) -> float:
+    value = nav / previous - 1.0 if previous > 0 else 0.0
+    if not np.isfinite(value) or (nav > 0 and value == -1.0):
+        raise ValueError("Daily returns must be finite and representable")
+    return value
 
 
 @dataclass
@@ -276,6 +294,14 @@ class BacktestEngine:
                 raw_px = panel.close.loc[date]
                 mark_px = valuation_px.loc[date]
                 held = shares.abs() > 1e-12
+                valued = shares != 0
+                if not np.isfinite(shares.to_numpy()).all():
+                    raise ValueError("Held shares must be finite")
+                if not np.isfinite(mark_px[valued].to_numpy()).all() or (mark_px[valued] < 0).any():
+                    raise ValueError("Held prices must be finite and nonnegative")
+                with np.errstate(over="ignore", invalid="ignore"):
+                    holdings_value = float((shares[valued] * mark_px[valued]).sum())
+                nav_t = _checked_nav(holdings_value + cash)
 
                 # -- 1. force-liquidate names that have gone dark -----------
                 dead = held & (stale.loc[date] >= cfg.delist_grace_days)
@@ -285,18 +311,17 @@ class BacktestEngine:
                     cost = self.cost_model.estimate(
                         notional, float(adv.loc[date].reindex(symbols[dead]).median() or 0.0)
                     ).total
+                    _checked_cost(cost, nav_t)
                     shares[dead] = 0.0
                     cash += proceeds - cost
                     cost_rows[date] = cost_rows.get(date, 0.0) + cost
                     log.debug(f"{date.date()}: liquidated {int(dead.sum())} delisted names")
 
                 # -- 2. mark to market on the pre-trade book ----------------
-                holdings_value = float(
-                    np.nansum(shares.to_numpy(dtype=float) * mark_px.to_numpy(dtype=float))
-                )
-                nav_t = holdings_value + cash
-                if prev_nav > 0:
-                    rets[date] = nav_t / prev_nav - 1.0
+                with np.errstate(over="ignore", invalid="ignore"):
+                    holdings_value = float((shares[valued] * mark_px[valued]).sum())
+                nav_t = _checked_nav(holdings_value + cash)
+                rets[date] = _daily_return(nav_t, prev_nav)
                 equity[date] = nav_t
 
                 # -- 3. execute anything signaled `lag` sessions ago --------
@@ -313,6 +338,7 @@ class BacktestEngine:
                         prices=raw_px,
                         adv_value=adv.loc[date],
                     )
+                    _checked_cost(result.cost_total, nav_t)
                     if not result.trades.empty:
                         frame = result.trades.copy()
                         frame.insert(0, "date", date)
@@ -331,24 +357,32 @@ class BacktestEngine:
                             / raw_px[tradable].to_numpy(dtype=float)
                         )
                     new_shares[~tradable] = shares[~tradable]
-                    shares = new_shares.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+                    if not np.isfinite(new_shares.to_numpy()).all():
+                        raise ValueError("Post-trade shares must be finite")
+                    shares = new_shares
                     cash = nav_after - float(
                         np.nansum(shares.to_numpy(dtype=float) * mark_px.to_numpy(dtype=float))
                     )
+                    if not np.isfinite(cash):
+                        raise ValueError("Post-trade cash must be finite")
                     nav_t = nav_after
                     # The day's return must be earned on the *post-cost* book, so that
                     # transaction costs actually depress the return series and the equity
                     # curve stays consistent with it. Without this, costs are deducted
                     # from NAV (step 2 above used the pre-trade book) but never reflected
                     # in `returns`, which inflates the net Sharpe/CAGR.
-                    if prev_nav > 0:
-                        rets[date] = nav_after / prev_nav - 1.0
+                    rets[date] = _daily_return(nav_after, prev_nav)
                     n_rebalances += 1
 
                 # -- 4. record end-of-day book ------------------------------
                 if nav_t > 0:
                     held_w = (shares * mark_px) / nav_t
                     weight_rows[date] = held_w
+                else:
+                    # Bankruptcy is legal but absorbing: a later price recovery
+                    # must not resurrect positions with no remaining capital.
+                    shares[:] = 0.0
+                    cash = 0.0
                 equity[date] = nav_t
                 prev_nav = nav_t
 
@@ -442,7 +476,10 @@ class BacktestEngine:
         if bench is not None:
             metrics["gross_benchmark_cagr"] = gross_metrics.get("benchmark_cagr", float("nan"))
         # Pre-cost (gross) equity curve for the cost-drag overlay in the report.
-        gross_equity = (1.0 + gross_returns).cumprod() * float(cfg.initial_capital)
+        with np.errstate(over="ignore", invalid="ignore"):
+            gross_equity = compound(gross_returns) * float(cfg.initial_capital)
+        if not np.isfinite(gross_equity.to_numpy()).all():
+            raise ValueError("Gross NAV must be finite")
 
         log.info(
             f"Backtest {returns_s.index[0].date()} -> {returns_s.index[-1].date()} | "

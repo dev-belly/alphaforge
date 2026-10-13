@@ -33,7 +33,7 @@ verified. These limits are recorded in the downloadable JSON and report banner.
 `--require-complete-sources` rejects the bundled mirror's incomplete source
 contract rather than treating real prices as proof of point-in-time correctness.
 
-The forecast window is March 2014–October 2019; portfolio results cover January
+The forecast window is January 2014–October 2019; portfolio results cover January
 2015–October 2019. The dataset ends November 14, 2019, where the benchmark source
 ends. Benchmark coverage is checked for every price session. Forecast failures,
 nonfinite predictions and differences in forecast coverage cannot be silently
@@ -60,6 +60,17 @@ parameters, per-fold metrics, per-run metrics, daily returns and an artifact
 manifest. The verifier recomputes portfolio headlines and seed aggregates from
 the saved return CSV without refitting models. Repeat with the recorded library
 versions; vendor mirror updates can change source hashes.
+
+Run real-data research commands from the repository root so the audited local
+tables are the same tables that the provider reads. `run_real_research.py`
+rejects a different working directory before loading data; `--help` remains
+available from any directory.
+
+The published bundle is a byte-hashed record. Its `.gitattributes` rule disables
+Git text conversion for `docs/experiments/real-sp500/`, preserving the original
+CSV, JSON, HTML and gzip bytes with both LF and CRLF checkout settings. Do not
+rewrite the manifest to accommodate a changed checkout: the verifier continues
+to reject altered bytes and independently checks the financial headlines.
 
 Real runs default to `research/real_runs` and comparisons to
 `research/comparison`. They are separate from the published synthetic
