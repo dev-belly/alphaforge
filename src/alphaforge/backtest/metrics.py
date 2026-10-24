@@ -263,7 +263,10 @@ def rolling_metrics(
     """Rolling return, volatility, Sharpe and drawdown."""
     r = returns.dropna()
     out = pd.DataFrame(index=r.index)
-    out["rolling_return"] = compound(r).pct_change(window)
+    # A window contains `window` returns, including its first observation.
+    # Differencing the post-return NAV needs one extra row and incorrectly
+    # drops the first fully observed return window.
+    out["rolling_return"] = (1.0 + r).rolling(window).apply(np.prod, raw=True) - 1.0
     out["rolling_vol"] = r.rolling(window).std(ddof=1) * np.sqrt(periods_per_year)
     out["rolling_sharpe"] = (
         r.rolling(window).mean() * periods_per_year / out["rolling_vol"].replace(0, np.nan)
