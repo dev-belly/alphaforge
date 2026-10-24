@@ -189,6 +189,42 @@ def test_factor_model_decomposes_into_bfb_plus_specific_variance() -> None:
     assert evals.min() >= -1e-9
 
 
+def test_factor_model_handles_more_assets_than_factors() -> None:
+    returns = _returns(p=4)
+    exposures = pd.DataFrame(
+        {"market": [1.0] * 4, "style": [0.0, 1.0, -1.0, 2.0]}, index=returns.columns
+    )
+    factors = pd.DataFrame(
+        [[0.04, 0.005], [0.005, 0.02]], index=exposures.columns, columns=exposures.columns
+    )
+    coefficients, *_ = np.linalg.lstsq(exposures.to_numpy(), returns.to_numpy().T, rcond=None)
+    residuals = returns.to_numpy().T - exposures.to_numpy() @ coefficients
+    specific = residuals.var(axis=1) * 252.0
+    floor = np.median(np.clip(specific, 1e-8, None)) * 0.1
+    expected = (
+        exposures.to_numpy() @ factors.to_numpy() @ exposures.to_numpy().T
+        + np.diag(np.clip(specific, floor, None))
+    )
+
+    result = CovarianceEstimator("factor").estimate(returns, exposures, factors)
+
+    np.testing.assert_allclose(result.matrix, expected, atol=1e-9, rtol=1e-9)
+    assert result.diagnostics["n_factors"] == 2
+
+
+def test_factor_covariance_uses_factor_labels_instead_of_table_order() -> None:
+    returns = _returns(p=4)
+    names = list(returns.columns)
+    exposures = pd.DataFrame(np.eye(4), index=names, columns=names)
+    covariance = pd.DataFrame(np.diag([0.01, 0.02, 0.03, 0.04]), index=names, columns=names)
+    estimator = CovarianceEstimator("factor")
+
+    expected = estimator.estimate(returns, exposures, covariance)
+    reordered = estimator.estimate(returns, exposures, covariance.loc[names[::-1], names[::-1]])
+
+    pd.testing.assert_frame_equal(reordered.matrix, expected.matrix)
+
+
 def test_factor_requires_exposures_and_factor_cov() -> None:
     r = _returns()
     # The guard only fires on genuinely missing inputs (None); empty frames are a

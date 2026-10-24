@@ -227,8 +227,12 @@ class CovarianceEstimator:
             raise ValueError("Factor covariance requires exposures and a factor covariance matrix")
         cols = list(rets.columns)
         B = exposures.reindex(cols).fillna(0.0).to_numpy(dtype=float)
-        F = factor_cov.to_numpy(dtype=float)
-        resid = rets.to_numpy(dtype=float) - rets.to_numpy(dtype=float) @ np.linalg.pinv(B) @ B
+        F = factor_cov.loc[exposures.columns, exposures.columns].to_numpy(dtype=float)
+        observed = rets.to_numpy(dtype=float)
+        # B is assets x factors. Fit one cross-sectional regression per date,
+        # then reconstruct asset returns in the original asset space.
+        factor_returns = observed @ np.linalg.pinv(B).T
+        resid = observed - factor_returns @ B.T
         specific = np.nanvar(resid, axis=0) * 252.0
         # Floor specific variance: a zero-variance name makes Sigma singular and
         # the optimiser will happily put the whole book in it.
