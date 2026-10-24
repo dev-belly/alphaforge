@@ -1,5 +1,10 @@
 # Case Study — Synthetic Sample Backtest (2019–2024)
 
+> **Protocol correction (2026-10-24):** this historical sample was produced with
+> calendar-day purge/embargo buffers despite trading-session forward labels.
+> The splitter now counts trading sessions. The figures below have not been
+> regenerated under that correction and do not establish leakage-free OOS results.
+
 > **Honesty first.** Every number below is produced by the *real* AlphaForge
 > engine on the bundled **synthetic** `sample` provider (seed 42). The sample
 > generator injects realistic but deliberately *moderate* cross-sectional factor

@@ -200,6 +200,11 @@ evaluation metric; the portfolio uses a fixed `portfolio.assumed_ic` set before
 the run. Using the full evaluation IC at earlier rebalances would leak future
 test returns.
 
+Both buffer settings count supplied trading sessions, matching the forward
+label's row horizon. Historical published runs used calendar-day buffers;
+see the [protocol correction](docs/research-comparison.md) before interpreting
+their reported out-of-sample results.
+
 ## Risk model
 
 A fundamental multi-factor model `Σ = B F Bᵀ + D` with 17 factors (market, size,

@@ -6,7 +6,7 @@ backtests that cannot lose.  Everything here is chronological.
 
 Purge and embargo
 -----------------
-With an ``H``-day forward-return label, the label of an observation at date
+With an ``H``-session forward-return label, the label of an observation at date
 ``t`` is realised at ``t + H``.  A training sample whose label is still forming
 at the start of the validation window leaks information, so we
 
@@ -16,6 +16,10 @@ at the start of the validation window leaks information, so we
   training observation, which additionally kills the serial-correlation leakage
   that purging alone does not address (López de Prado, *Advances in Financial
   ML*).
+
+``purge_days`` and ``embargo_days`` count sessions in the supplied trading-date
+index, matching the row shifts used to build forward-return labels. Weekends
+and market closures do not consume either buffer.
 
 Both rules are anchored on the *seam* between the two blocks, not on the end of
 the training set: in :class:`PurgedKFold` the training set wraps around the test
@@ -143,7 +147,7 @@ class WalkForwardSplitter:
         """Drop the training observations whose label overlaps the test block.
 
         An observation at ``t`` is labelled over the following ``purge_days``
-        (the forward-return horizon), so it leaks as soon as ``t + purge_days``
+        trading sessions (the forward-return horizon), so it leaks as soon as ``t + purge_days``
         reaches into the test block.  The offending observations are the ones
         immediately *before* the first test date - which is not the same thing as
         the tail of the training set once the training set wraps around the test
@@ -157,12 +161,14 @@ class WalkForwardSplitter:
         test_pos = np.where(np.asarray(test_mask, dtype=bool))[0]
         if test_pos.size == 0:
             return out
-        cutoff = dates[test_pos[0]] - pd.Timedelta(days=int(purge_days))
         # Only the observations that *precede* the test block can carry a label
         # that is still forming when it opens; a training observation to its
         # right is labelled entirely after the test block has closed, so it is
         # left alone.
-        out &= ~((np.asarray(dates) >= cutoff) & (np.asarray(dates) <= dates[test_pos[-1]]))
+        # The labels use shift(-H), so purge exactly H preceding observations,
+        # rather than H calendar days (which omit weekends and market closures).
+        cutoff = max(0, int(test_pos[0]) - int(purge_days))
+        out[cutoff : test_pos[-1] + 1] = False
         return out
 
     @staticmethod
@@ -188,11 +194,9 @@ class WalkForwardSplitter:
         train_pos = np.where(np.asarray(train_mask, dtype=bool))[0]
         if train_pos.size == 0 or not out.any():
             return out
-        gap = np.timedelta64(int(embargo_days), "D")
-        train_dates = np.asarray(dates[train_pos], dtype="datetime64[ns]")
-        all_dates = np.asarray(dates, dtype="datetime64[ns]")
-        lo = np.searchsorted(train_dates, all_dates - gap, side="left")
-        hi = np.searchsorted(train_dates, all_dates + gap, side="right")
+        positions = np.arange(len(dates))
+        lo = np.searchsorted(train_pos, positions - int(embargo_days), side="left")
+        hi = np.searchsorted(train_pos, positions + int(embargo_days), side="right")
         # A test date is contaminated when at least one training date falls
         # inside its embargo window.
         out &= ~(hi > lo)
