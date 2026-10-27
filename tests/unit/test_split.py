@@ -21,6 +21,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from alphaforge.features.panel import build_panel
+from alphaforge.models.dataset import build_dataset
 from alphaforge.models.split import (
     PurgedKFold,
     WalkForwardConfig,
@@ -104,6 +106,64 @@ def test_purge_removes_the_training_labels_that_overlap_the_test_block() -> None
         # ``train_end + HORIZON`` and must still fall strictly before the test
         # block opens - otherwise the fold trains on the future.
         assert fold.train_end + pd.Timedelta(days=HORIZON) < fold.test_start
+
+
+def test_purge_removes_labels_that_end_in_test_after_counting_trading_sessions() -> None:
+    # Production labels use close.shift(-HORIZON), so weekends and exchange
+    # closures must not shorten the separation at the train/test boundary.
+    dates = DATES.difference(pd.bdate_range("2017-12-22", "2017-12-29"))
+    folds = _split(dates=dates, purge_days=HORIZON, embargo_days=HORIZON)
+    assert folds
+    for fold in folds:
+        train_last = np.flatnonzero(fold.train_mask)[-1]
+        test_first = np.flatnonzero(fold.test_mask)[0]
+        label_end = dates[train_last + HORIZON]
+        assert label_end < dates[test_first]
+
+
+def test_production_forward_labels_mature_before_walk_forward_test_starts() -> None:
+    dates = pd.bdate_range("2016-01-04", "2019-12-31").difference(
+        pd.bdate_range("2016-12-23", "2016-12-30")
+    )
+    close = pd.DataFrame(
+        {"A": 100.0 + np.arange(len(dates)), "B": 200.0 + np.arange(len(dates))},
+        index=dates,
+    )
+    prices = (
+        close.rename_axis(index="date", columns="symbol").stack().rename("adj_close").reset_index()
+    )
+    prices["close"] = prices["adj_close"]
+    prices["volume"] = 1e6
+    prices["market_cap"] = 1e9
+    panel = build_panel(prices)
+    dataset = build_dataset(panel, {"x": panel.close}, horizon=HORIZON, min_names_per_date=2)
+    folds = _split(
+        dates=dataset.date_index(), train_years=1, purge_days=HORIZON, embargo_days=HORIZON
+    )
+    assert folds
+
+    for fold in folds:
+        last_position = panel.dates.get_loc(fold.train_end)
+        label_end = panel.dates[last_position + HORIZON]
+        labelled = dataset.dates == fold.train_end
+        expected = panel.close.loc[label_end] / panel.close.loc[fold.train_end] - 1.0
+        np.testing.assert_allclose(
+            dataset.forward_returns.loc[labelled].to_numpy(),
+            dataset.symbols.loc[labelled].map(expected).to_numpy(),
+        )
+        assert label_end < fold.test_start
+
+
+def test_embargo_counts_supplied_trading_sessions_on_both_sides() -> None:
+    dates = pd.bdate_range("2024-01-02", periods=80).difference(
+        pd.bdate_range("2024-01-22", "2024-02-02")
+    )
+    splits = PurgedKFold(n_splits=3, purge_days=0, embargo_days=5).split(dates)
+    assert splits
+    for train, test in splits:
+        train_positions = np.flatnonzero(train)
+        for test_position in np.flatnonzero(test):
+            assert np.abs(train_positions - test_position).min() > 5
 
 
 def test_embargo_forces_a_gap_after_the_last_training_session() -> None:

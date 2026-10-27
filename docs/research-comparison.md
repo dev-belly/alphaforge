@@ -2,6 +2,13 @@
 
 [Open the complete comparison](experiments/real-sp500/index.html)
 
+**Protocol correction (2026-10-24):** the archived runs below used calendar-day
+purge/embargo buffers for labels measured in trading sessions. Those buffers
+could leave training labels that extend into the test period. The splitter now
+counts supplied trading sessions. The archived artifacts and numbers are
+preserved as historical records; they have not been refit under the corrected
+protocol and should not be treated as leakage-free out-of-sample evidence.
+
 This exploratory experiment uses 1,173,649 real mirrored price rows, a frozen
 840,736-row model dataset with 24 usable features, and 551,698 shared out-of-sample
 forecasts. It compares equal weight, a fixed 12–1 momentum signal, Ridge,
