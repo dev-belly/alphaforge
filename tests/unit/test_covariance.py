@@ -201,9 +201,8 @@ def test_factor_model_handles_more_assets_than_factors() -> None:
     residuals = returns.to_numpy().T - exposures.to_numpy() @ coefficients
     specific = residuals.var(axis=1) * 252.0
     floor = np.median(np.clip(specific, 1e-8, None)) * 0.1
-    expected = (
-        exposures.to_numpy() @ factors.to_numpy() @ exposures.to_numpy().T
-        + np.diag(np.clip(specific, floor, None))
+    expected = exposures.to_numpy() @ factors.to_numpy() @ exposures.to_numpy().T + np.diag(
+        np.clip(specific, floor, None)
     )
 
     result = CovarianceEstimator("factor").estimate(returns, exposures, factors)
