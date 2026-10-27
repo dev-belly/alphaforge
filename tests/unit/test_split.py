@@ -129,13 +129,17 @@ def test_production_forward_labels_mature_before_walk_forward_test_starts() -> N
         {"A": 100.0 + np.arange(len(dates)), "B": 200.0 + np.arange(len(dates))},
         index=dates,
     )
-    prices = close.rename_axis(index="date", columns="symbol").stack().rename("adj_close").reset_index()
+    prices = (
+        close.rename_axis(index="date", columns="symbol").stack().rename("adj_close").reset_index()
+    )
     prices["close"] = prices["adj_close"]
     prices["volume"] = 1e6
     prices["market_cap"] = 1e9
     panel = build_panel(prices)
     dataset = build_dataset(panel, {"x": panel.close}, horizon=HORIZON, min_names_per_date=2)
-    folds = _split(dates=dataset.date_index(), train_years=1, purge_days=HORIZON, embargo_days=HORIZON)
+    folds = _split(
+        dates=dataset.date_index(), train_years=1, purge_days=HORIZON, embargo_days=HORIZON
+    )
     assert folds
 
     for fold in folds:
