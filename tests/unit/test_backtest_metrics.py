@@ -397,6 +397,24 @@ def test_rolling_return_is_the_trailing_compounded_return():
     assert got["rolling_return"].iloc[12] == pytest.approx(1.01**12 - 1.0, rel=1e-9)
 
 
+def test_rolling_return_starts_at_the_first_complete_return_window():
+    returns = pd.Series([0.10, -0.20, 0.30, 0.05], index=pd.bdate_range("2024-01-02", periods=4))
+
+    result = rolling_metrics(returns, window=3)
+
+    assert result["rolling_return"].iloc[:2].isna().all()
+    assert result["rolling_return"].iloc[2] == pytest.approx(1.10 * 0.80 * 1.30 - 1.0)
+    assert result["rolling_return"].iloc[3] == pytest.approx(0.80 * 1.30 * 1.05 - 1.0)
+
+
+def test_one_period_rolling_return_preserves_every_observation():
+    returns = pd.Series([0.10, -0.20, 0.30], index=pd.bdate_range("2024-01-02", periods=3))
+
+    result = rolling_metrics(returns, window=1)
+
+    np.testing.assert_allclose(result["rolling_return"], returns)
+
+
 def test_rolling_beta_appears_only_with_a_benchmark():
     r = _monthly(n=48)
     without = rolling_metrics(r, window=12, periods_per_year=12)
