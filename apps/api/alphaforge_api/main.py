@@ -24,10 +24,10 @@ from typing import Any
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from alphaforge.agents.tools import CATALOG, run_tools
-from alphaforge.backtest.engine import BacktestConfig, BacktestEngine
+from alphaforge.backtest.engine import BacktestConfig, BacktestEngine, BacktestResult
 from alphaforge.pipeline import ResearchPipeline, ResearchState
 from alphaforge.portfolio.constructor import PortfolioConstructor
 from alphaforge.utils.config import Config
@@ -81,7 +81,22 @@ class BacktestRequest(BaseModel):
         None, description="Session lag between signal and trade."
     )
     rebalance: str | None = Field(None, description="monthly | weekly | daily")
-    cost_rate: float | None = Field(None, description="Proportional transaction-cost rate.")
+    cost_rate: float | None = Field(
+        None,
+        ge=0,
+        allow_inf_nan=False,
+        description="Flat one-way transaction-cost rate; overrides commission, slippage and impact.",
+    )
+
+    @field_validator("cost_rate", mode="before")
+    @classmethod
+    def reject_nonfinite_cost_rate(cls, value: Any) -> Any:
+        # JSON parsers can decode 1e999/NaN to non-finite Python floats.
+        # A normal validation error would echo that input into FastAPI's JSON
+        # response, which itself cannot encode it. Keep this error JSON-safe.
+        if isinstance(value, float) and not math.isfinite(value):
+            raise HTTPException(status_code=422, detail="cost_rate must be finite")
+        return value
 
 
 class AgentQueryRequest(BaseModel):
@@ -376,6 +391,61 @@ def _require_state() -> ResearchState:
     return _STATE["state"]
 
 
+def _rerun_backtest(
+    st: ResearchState,
+    *,
+    portfolio_config: dict[str, Any] | None = None,
+    backtest_config: dict[str, Any] | None = None,
+    cost_rate: float | None = None,
+) -> BacktestResult:
+    """Use the cached run's ex-ante assumptions, as the research pipeline does."""
+    portfolio_cfg = (
+        dict(st.config.get("portfolio", {}) or {}) if portfolio_config is None else portfolio_config
+    )
+    try:
+        assumed_ic = float(portfolio_cfg.get("assumed_ic", 0.03))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=422, detail="portfolio.assumed_ic must be a finite correlation in [-1, 1]"
+        ) from exc
+    if not math.isfinite(assumed_ic) or abs(assumed_ic) > 1:
+        raise HTTPException(
+            status_code=422, detail="portfolio.assumed_ic must be a finite correlation in [-1, 1]"
+        )
+    # The full OOS IC contains future outcomes. It is reporting-only and must
+    # never calibrate historical target weights in either re-computation route.
+    cost_cfg = dict(st.config.get("cost", {}) or {})
+    if cost_rate is not None:
+        commission_bps = cost_rate * 10_000.0
+        if not math.isfinite(commission_bps):
+            raise HTTPException(
+                status_code=422, detail="cost_rate must convert to finite basis points"
+            )
+        # This legacy API field is a total proportional charge on one-way
+        # traded notional, not an additional fee on top of the cached model.
+        cost_cfg.update(
+            commission_bps=commission_bps,
+            slippage_bps=0.0,
+            impact_coeff_bps=0.0,
+            min_commission=0.0,
+        )
+    try:
+        return BacktestEngine(
+            st.panel,
+            constructor=PortfolioConstructor(
+                st.panel, portfolio_cfg, st.config.get("risk", {}) or {}
+            ),
+            signals=st.signal_panel,
+            ic=assumed_ic,
+            cost_model=cost_cfg,
+            config=BacktestConfig.from_dict(
+                st.config.get("backtest", {}) if backtest_config is None else backtest_config
+            ),
+        ).run()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.get("/portfolio/summary")
 def portfolio_summary() -> dict:
     st = _require_state()
@@ -496,16 +566,7 @@ def optimize(req: OptimizeRequest) -> dict:
     if req.target_volatility is not None:
         overrides["target_volatility"] = req.target_volatility
     portfolio_cfg = {**dict(st.config.get("portfolio", {}) or {}), **overrides}
-    cons = PortfolioConstructor(panel, portfolio_cfg, st.config.get("risk", {}) or {})
-    bcfg = dict(st.config.get("backtest", {}) or {})
-    ic = st.model_eval.summary.get("rank_ic_mean", 0.03) if st.model_eval is not None else 0.03
-    bt = BacktestEngine(
-        panel,
-        constructor=cons,
-        signals=st.signal_panel,
-        ic=ic,
-        config=BacktestConfig.from_dict(bcfg),
-    ).run()
+    bt = _rerun_backtest(st, portfolio_config=portfolio_cfg)
     tw = bt.target_weights
     if tw is None or tw.empty:
         raise HTTPException(status_code=404, detail="Optimiser produced no target weights.")
@@ -539,17 +600,7 @@ def backtests(req: BacktestRequest) -> dict:
         bcfg["execution_lag_days"] = req.execution_lag_days
     if req.rebalance is not None:
         bcfg["rebalance"] = req.rebalance
-    if req.cost_rate is not None:
-        bcfg["cost_rate"] = req.cost_rate
-    bt = BacktestEngine(
-        panel,
-        constructor=PortfolioConstructor(
-            panel, st.config.get("portfolio", {}), st.config.get("risk", {})
-        ),
-        signals=st.signal_panel,
-        ic=st.model_eval.summary.get("rank_ic_mean", 0.03) if st.model_eval is not None else 0.03,
-        config=BacktestConfig.from_dict(bcfg),
-    ).run()
+    bt = _rerun_backtest(st, backtest_config=bcfg, cost_rate=req.cost_rate)
     return _clean({"summary": bt.summary(), "diagnostics": bt.diagnostics})
 
 

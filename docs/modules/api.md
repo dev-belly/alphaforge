@@ -37,6 +37,21 @@ alphaforge --serve-api          # uvicorn on :8000
 All numeric responses are JSON-safe (`numpy`/`NaN` → `null`); the same endpoint
 contract is exercised by `tests/integration/test_api.py`.
 
+## Re-running a cached experiment
+
+`/optimize` and `/backtests` reuse the cached run's signals, configured
+`portfolio.assumed_ic` (default `0.03`), and `cost` model. The full walk-forward
+evaluation IC is reporting-only; it never calibrates historical target weights.
+Neither endpoint changes the cached run or its configuration.
+
+For `/backtests`, omitting `cost_rate` preserves the configured commission,
+slippage, market impact, minimum commission and borrow costs. Supplying the
+existing `cost_rate` field replaces the transaction charges with a flat rate on
+one-way traded notional: `0.001` means 10 bps. It sets commission to that rate,
+sets slippage, impact and minimum commission to zero, and preserves the configured
+borrow cost. A zero rate removes transaction charges. Negative, non-finite, or
+unrepresentable rates return HTTP 422.
+
 ```bash
 curl -X POST localhost:8000/research/run \
      -H 'content-type: application/json' \
