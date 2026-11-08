@@ -149,6 +149,11 @@ authentication.
 
 ## Sample output
 
+The figures below retain the archived sample's source version. The
+[2026-11-08 evaluation correction](docs/modules/factor_research.md#evaluation-correction-2026-11-08)
+fixes shared-pair Rank-IC and quantile boundaries; current factor diagnostics
+can differ when rerun.
+
 Every figure below is rendered from the shipped **synthetic `sample`** dataset by
 `python scripts/publish_sample.py` (seed 42) — they demonstrate the *pipeline*, not a
 tradeable edge. Reports from other dates, configurations or dependency versions

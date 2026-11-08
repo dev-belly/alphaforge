@@ -78,11 +78,16 @@ available on that date — no look-ahead is possible.
 n_quantiles=5)` returns a `FactorResult` with the full tear sheet:
 
 * **Information coefficients** — per-date cross-sectional Pearson `ic` and rank
-  (Spearman) `rank_ic`, computed only on names present in *both* the factor and
-  the realised forward return; dates with fewer than five names return `NaN`
-  rather than a spurious correlation.
+  (Spearman) `rank_ic`, computed on the same finite factor/forward-return pairs
+  inside the supplied universe. Ranks are computed after removing unpaired
+  names, with average ranks for ties. The `n` column counts these pairs; dates
+  with fewer than five pairs return `NaN`.
 * **Quantile portfolios** — equal-weighted long-short spread `qN - q1` and its
-  annualised return and hit ratio.
+  annualised return and hit ratio. Sort the same paired names by factor value,
+  break ties in the forward-return panel's column order, and form consecutive
+  groups whose sizes differ by at most one. Ten names in five quantiles means
+  exactly two names per group. At least `2 * n_quantiles` pairs are required;
+  smaller cross-sections have `NaN` group returns and no top-group members.
 * **IC decay** — mean Rank-IC against forward returns at horizons
   `[1, 5, 10, 21, 42, 63, 126, 252]` days.
 * **Year-by-year stability** — mean / ICIR per calendar year.
@@ -96,6 +101,27 @@ an `h`-day forward return overstates the naive t-stat by ~`sqrt(h)`),
 
 > A factor with a great mean IC and a terrible ICIR is not a factor. The tear
 > sheet is designed to make that obvious.
+
+### Evaluation correction (2026-11-08)
+
+Earlier code ranked the factor and forward returns separately before discarding
+unpaired names. Missing observations could change Spearman IC: a five-pair
+regression example returned **0.709302** instead of the paired-reference **0.8**.
+The corrected evaluator masks both panels before either ranking operation and
+excludes infinities from pair counts as well as correlations.
+
+The old one-based percentile boundary also allocated ten sorted names to five
+groups as **1 / 2 / 2 / 2 / 3**. Zero-based ranks give **2 / 2 / 2 / 2 / 2**;
+unpaired names cannot shift the boundaries. Regression tests compare IC against
+independent pandas correlations and check exact group returns, ties, alignment,
+universe exclusions, minimum counts and uneven group sizes.
+
+These quantiles condition on observed forward outcomes and are retrospective
+factor diagnostics. Missing outcomes do not establish an investable universe.
+The [published synthetic sample](../sample-run.md) predates this correction;
+its archived factor summaries and figures have not been recomputed. Rerunning
+the evaluator can change those diagnostics and is not evidence of improved
+trading performance.
 
 ## Multiple-testing control — Benjamini-Hochberg
 

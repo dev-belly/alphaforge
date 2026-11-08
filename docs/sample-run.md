@@ -5,6 +5,11 @@ This is a computed run on **synthetic data**, with seed 42,
 The backtest covers 2019-01-01 to 2024-12-31.
 All README figures and this report come from the same pipeline state.
 
+This archived run predates the [2026-11-08 factor-evaluation correction](modules/factor_research.md#evaluation-correction-2026-11-08).
+Its factor diagnostics and figures retain the recorded source version. Current
+runs rank shared finite pairs and use corrected quantile boundaries, so those
+diagnostics can differ from this archive.
+
 [Open the full report](sample/research_report.html) · [Run manifest](sample/manifest.json) ·
 [Daily results CSV](sample/daily_results.csv) · [Configuration](sample/config.json) · [Metrics JSON](sample/metrics.json)
 
