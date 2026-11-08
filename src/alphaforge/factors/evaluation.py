@@ -84,27 +84,26 @@ def compute_ic(
 ) -> pd.DataFrame:
     """Per-date cross-sectional Pearson and rank (Spearman) IC.
 
-    Only names present in *both* the factor and the realised forward return are
-    used, and dates with fewer than five observations return NaN rather than a
-    spurious correlation.
+    Only names finite in *both* the factor and the realised forward return are
+    used. Ranks are computed after this shared mask, with average ranks for
+    ties. Dates with fewer than five paired observations return NaN.
     """
     if universe is not None:
         factor = factor.where(universe)
         forward_returns = forward_returns.where(universe)
 
     f = factor.reindex(index=forward_returns.index, columns=forward_returns.columns)
-    common = f.notna() & forward_returns.notna()
+    common = np.isfinite(f) & np.isfinite(forward_returns)
     n_valid = common.sum(axis=1)
     ok = n_valid >= 5
 
-    f_rank = f.where(ok).rank(axis=1)
-    r_rank = forward_returns.where(ok).rank(axis=1)
+    eligible = common & ok.values[:, None]
+    scores = f.where(eligible)
+    outcomes = forward_returns.where(eligible)
 
     out = pd.DataFrame(index=f.index)
-    out["pearson_ic"] = _rowwise_corr(
-        f.where(ok), forward_returns.where(ok), common & ok.values[:, None]
-    )
-    out["rank_ic"] = _rowwise_corr(f_rank, r_rank, common & ok.values[:, None])
+    out["pearson_ic"] = _rowwise_corr(scores, outcomes, eligible)
+    out["rank_ic"] = _rowwise_corr(scores.rank(axis=1), outcomes.rank(axis=1), eligible)
     out["n"] = n_valid
     return out
 
@@ -117,6 +116,11 @@ def quantile_portfolios(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Equal-weighted quantile portfolio forward returns plus per-date weights.
 
+    Sort only finite factor/return pairs within the supplied universe, breaking
+    ties by column order. Consecutive buckets differ in size by at most one;
+    dates with fewer than twice ``n_quantiles`` paired names remain unevaluated.
+    These are retrospective diagnostics, not executable portfolio weights.
+
     Returns
     -------
     (returns, weights)
@@ -128,16 +132,17 @@ def quantile_portfolios(
         forward_returns = forward_returns.where(universe)
 
     f = factor.reindex(index=forward_returns.index, columns=forward_returns.columns)
-    valid = f.notna() & forward_returns.notna()
+    valid = np.isfinite(f) & np.isfinite(forward_returns)
     ok = valid.sum(axis=1) >= n_quantiles * 2
 
-    scores = f.where(ok)
-    rets = forward_returns.where(ok)
-    # Percentile rank within each date, then integer quantile bucket in [0, n-1].
+    eligible = valid & ok.values[:, None]
+    scores = f.where(eligible)
+    rets = forward_returns.where(eligible)
+    # Zero-based ranks put exact boundaries in the preceding bucket, so ten
+    # names in five quantiles give 2/2/2/2/2 rather than 1/2/2/2/3.
     ranks = scores.rank(axis=1, method="first")
     counts = scores.notna().sum(axis=1)
-    pct = ranks.div(counts.replace(0, np.nan), axis=0)
-    bucket = np.floor(pct * n_quantiles).clip(upper=n_quantiles - 1)
+    bucket = np.floor((ranks - 1.0).mul(n_quantiles).div(counts.replace(0, np.nan), axis=0))
 
     out = pd.DataFrame(np.nan, index=f.index, columns=[f"q{i + 1}" for i in range(n_quantiles)])
     for qi in range(n_quantiles):
