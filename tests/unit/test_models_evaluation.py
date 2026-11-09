@@ -110,6 +110,24 @@ def test_rank_ic_ignores_names_with_a_missing_side() -> None:
     assert rank_ic(x, y) == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize(
+    ("scores", "outcomes"),
+    [
+        ([1, 2, 3, 4, 5, np.inf, 7], [1, 4, 2, 5, 3, 0, -np.inf]),
+        ([1, 2, 3, 4, np.inf], [1, 2, 3, 4, 5]),
+    ],
+    ids=["finite-pairs", "fewer-than-five-finite-pairs"],
+)
+def test_rank_ic_uses_only_shared_finite_pairs(scores, outcomes) -> None:
+    paired = pd.DataFrame({"score": scores, "outcome": outcomes})
+    paired = paired.replace([np.inf, -np.inf], np.nan).dropna()
+    actual = rank_ic(pd.Series(scores), pd.Series(outcomes))
+    if len(paired) < 5:
+        assert np.isnan(actual)
+    else:
+        assert actual == pytest.approx(paired["score"].corr(paired["outcome"], method="spearman"))
+
+
 def test_rank_ic_is_nan_below_five_names() -> None:
     x = pd.Series([1.0, 2.0, 3.0, 4.0])
     assert np.isnan(rank_ic(x, x))
@@ -150,6 +168,33 @@ def test_daily_rank_ic_skips_a_date_that_is_too_thin() -> None:
 def test_daily_rank_ic_honours_min_names() -> None:
     pred = _predictions()
     assert daily_rank_ic(pred, min_names=len(SYMBOLS) + 1).isna().all()
+
+
+@pytest.mark.parametrize(
+    ("scores", "outcomes"),
+    [
+        ([0, 10, 20, 30, 40, np.nan, 15], [0.1, 0.3, 0.2, 0.5, 0.4, 0.25, np.nan]),
+        ([1, 1, 2, 3, 3, 2, np.nan, 4], [2, 3, 3, 1, 4, np.nan, 2, 4]),
+        ([0, 10, 20, 30, 40, np.inf, 15], [0.1, 0.3, 0.2, 0.5, 0.4, 0.25, -np.inf]),
+    ],
+    ids=["asymmetric-missingness", "tied-ranks", "nonfinite-pairs"],
+)
+def test_daily_rank_ic_matches_independent_paired_spearman(scores, outcomes) -> None:
+    rows = [(f"S{i}", score, outcome) for i, (score, outcome) in enumerate(zip(scores, outcomes))]
+    predictions = _flat_predictions(rows)
+    paired = pd.DataFrame({"score": scores, "outcome": outcomes})
+    paired = paired.replace([np.inf, -np.inf], np.nan).dropna()
+    expected = paired["score"].corr(paired["outcome"], method="spearman")
+
+    assert daily_rank_ic(predictions).iloc[0] == pytest.approx(expected)
+    assert daily_rank_ic(predictions, min_names=len(paired) + 1).isna().all()
+
+
+def test_daily_rank_ic_requires_the_minimum_number_of_finite_pairs() -> None:
+    predictions = _flat_predictions(
+        [(f"S{i}", float(i), float(i)) for i in range(4)] + [("bad", np.inf, 0.0)]
+    )
+    assert daily_rank_ic(predictions).isna().all()
 
 
 def test_daily_rank_ic_keeps_the_last_row_for_a_duplicated_date_and_symbol() -> None:
@@ -210,12 +255,73 @@ def test_quantile_returns_is_monotone_for_a_signal_that_orders_returns() -> None
     assert means.is_monotonic_increasing
 
 
-def test_quantile_returns_fills_every_bucket_with_the_same_number_of_names() -> None:
-    """12 names / 5 buckets -> the bucket sizes may differ by at most one."""
-    rows = [(f"S{i}", float(i), float(i)) for i in range(10)]
-    got = quantile_returns(_flat_predictions(rows), n_quantiles=5)
-    assert got.shape == (1, 5)
-    assert got.notna().all().all()
+@pytest.mark.parametrize(("n_names", "n_quantiles"), [(10, 5), (20, 5), (12, 3)])
+@pytest.mark.parametrize("tied", [False, True], ids=["distinct", "tied"])
+def test_quantile_returns_fills_every_bucket_with_the_same_number_of_names(
+    n_names, n_quantiles, tied
+) -> None:
+    outcomes = np.arange(n_names) ** 2 / 1000.0
+    rows = [(f"S{i}", 0.0 if tied else float(i), outcomes[i]) for i in range(n_names)]
+    got = quantile_returns(_flat_predictions(rows), n_quantiles=n_quantiles)
+    expected = [group.mean() for group in np.split(outcomes, n_quantiles)]
+    assert got.shape == (1, n_quantiles)
+    assert got.iloc[0].to_numpy() == pytest.approx(expected)
+
+
+def test_quantile_returns_excludes_nonfinite_pairs_before_ranking() -> None:
+    predictions = _flat_predictions(
+        [(f"S{i}", float(i), i / 100.0) for i in range(10)]
+        + [("bad-score", np.inf, 0.5), ("bad-outcome", 4.5, -np.inf)]
+    )
+    got = quantile_returns(predictions)
+    assert got.iloc[0].to_numpy() == pytest.approx([0.005, 0.025, 0.045, 0.065, 0.085])
+
+
+def test_quantile_returns_counts_only_finite_pairs_for_minimum_size() -> None:
+    predictions = _flat_predictions(
+        [(f"S{i}", float(i), i / 100.0) for i in range(9)] + [("bad", 4.5, np.inf)]
+    )
+    assert quantile_returns(predictions).isna().all().all()
+
+
+def test_quantile_returns_is_empty_when_all_pairs_are_nonfinite() -> None:
+    predictions = _flat_predictions([("A", np.inf, 0.1), ("B", 1.0, -np.inf)])
+    assert quantile_returns(predictions).empty
+
+
+@pytest.mark.parametrize("seed", [7, 19, 42])
+def test_model_and_factor_diagnostics_use_the_same_cross_sections(seed) -> None:
+    from alphaforge.factors.evaluation import compute_ic, quantile_portfolios
+
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2024-01-02", periods=5)
+    symbols = [f"S{i:02d}" for i in range(12)]
+    scores = pd.DataFrame(rng.integers(-4, 5, size=(5, 12)), index=dates, columns=symbols)
+    outcomes = pd.DataFrame(rng.normal(0, 0.02, size=(5, 12)), index=dates, columns=symbols)
+    scores = scores.astype(float)
+    scores.iloc[1, 3] = np.nan
+    outcomes.iloc[2, 5] = np.nan
+    scores.iloc[3, 2] = np.inf
+    outcomes.iloc[4, 7] = -np.inf
+    predictions = pd.DataFrame(
+        [
+            (date, symbol, scores.loc[date, symbol], outcomes.loc[date, symbol])
+            for date in dates
+            for symbol in symbols
+        ],
+        columns=["date", "symbol", "prediction", "realised"],
+    )
+    # Keep input row order and the supplied wide-panel column order identical
+    # so both layers apply their documented ordinal tie break to the same names.
+    expected_ic = compute_ic(scores, outcomes)["rank_ic"]
+    expected_ic.index.name = "date"
+    expected_quantiles, _ = quantile_portfolios(scores, outcomes)
+    expected_quantiles.index.name = "date"
+
+    pd.testing.assert_series_equal(daily_rank_ic(predictions), expected_ic, check_freq=False)
+    pd.testing.assert_frame_equal(
+        quantile_returns(predictions), expected_quantiles, check_freq=False
+    )
 
 
 def test_quantile_returns_puts_the_best_prediction_in_the_top_bucket() -> None:
@@ -403,6 +509,19 @@ def test_evaluate_carries_the_inputs_through(evaluation: ModelEvaluation) -> Non
     assert not evaluation.predictions.empty
     assert evaluation.quantile_returns.shape[1] == 5
     assert evaluation.to_dict() == {"model": "ridge", **evaluation.summary}
+
+
+def test_evaluate_predictions_reports_corrected_paired_ic_and_quantile_spread() -> None:
+    predictions = _flat_predictions(
+        [(f"S{i:02d}", float(i), i**2 / 1000.0) for i in range(10)]
+        + [("missing-outcome", 4.5, np.nan), ("missing-score", np.nan, 0.03)]
+    )
+    actual = evaluate_predictions(predictions, horizon=1)
+    assert actual.summary["rank_ic_mean"] == pytest.approx(1.0)
+    assert actual.summary["top_quantile_return"] == pytest.approx(0.0725)
+    assert actual.summary["bottom_quantile_return"] == pytest.approx(0.0005)
+    assert actual.summary["long_short_spread"] == pytest.approx(0.072)
+    assert actual.summary["ann_long_short"] == pytest.approx(0.072 * 252)
 
 
 def test_evaluate_builds_one_yearly_row_per_calendar_year(evaluation: ModelEvaluation) -> None:

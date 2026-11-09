@@ -123,6 +123,30 @@ its archived factor summaries and figures have not been recomputed. Rerunning
 the evaluator can change those diagnostics and is not evidence of improved
 trading performance.
 
+### Model evaluation alignment (2026-11-09)
+
+The separate `alphaforge.models.evaluation` path now follows the same finite-pair
+and quantile-boundary rules. Scalar `rank_ic` and vectorised `daily_rank_ic`
+exclude missing or infinite predictions/outcomes before ranking. The daily
+`min_names` threshold counts shared finite pairs (five by default), with average
+ranks for ties. An asymmetric-missingness example previously returned **0.762493**
+from the model path instead of the paired-reference **0.8**.
+
+Model `quantile_returns` also removes nonfinite pairs before counting or
+ranking. Zero-based boundaries split ten names into **2 / 2 / 2 / 2 / 2**;
+groups remain unevaluated below `2 * n_quantiles` finite pairs. Entirely invalid
+input retains the existing empty-result contract. Quantile ties retain input
+row order in the long model frame and supplied column order in a wide factor
+panel, so use the same name order when comparing tied groups across layers.
+
+Regression checks compare unique date/symbol model panels with the factor
+evaluator, independent pandas Spearman calculations, hand-partitioned quantile
+means, finite-pair minimums and the final model summary. These are retrospective
+outcome-conditioned diagnostics. The [archived sample](../sample-run.md) predates
+both corrections; its model/factor diagnostics retain their recorded source
+version and have not been refit. Recompute a new research run before comparing
+diagnostics across versions.
+
 ## Multiple-testing control — Benjamini-Hochberg
 
 Screening 42 factors at the 5% level produces ~2 false positives by
