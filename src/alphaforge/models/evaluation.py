@@ -18,8 +18,8 @@ log = get_logger("models.evaluation")
 
 
 def rank_ic(pred: pd.Series, realised: pd.Series) -> float:
-    """Spearman rank correlation between prediction and realised return."""
-    df = pd.concat([pred, realised], axis=1).dropna()
+    """Spearman rank correlation on shared finite prediction/outcome pairs."""
+    df = pd.concat([pred, realised], axis=1).replace([np.inf, -np.inf], np.nan).dropna()
     if len(df) < 5:
         return float("nan")
     left, right = df.iloc[:, 0].rank(), df.iloc[:, 1].rank()
@@ -36,19 +36,22 @@ def daily_rank_ic(predictions: pd.DataFrame, min_names: int = 5) -> pd.Series:
     """Per-date rank IC from a long frame with date / pred / realised columns.
 
     Vectorised by pivoting to the (dates x symbols) grid and reusing the same
-    row-wise correlation kernel as the factor engine.
+    row-wise correlation kernel as the factor engine. Both ranks and
+    ``min_names`` use only pairs finite on both sides, with average ranks for
+    ties.
     """
     pred = _pivot_predictions(predictions, "prediction")
     real = _pivot_predictions(predictions, "realised").reindex(
         index=pred.index, columns=pred.columns
     )
-    common = pred.notna() & real.notna()
+    common = np.isfinite(pred) & np.isfinite(real)
     ok = common.sum(axis=1) >= min_names
-    p_rank = pred.where(ok).rank(axis=1)
-    r_rank = real.where(ok).rank(axis=1)
+    eligible = common & ok.values[:, None]
+    p_rank = pred.where(eligible).rank(axis=1)
+    r_rank = real.where(eligible).rank(axis=1)
     from alphaforge.factors.evaluation import _rowwise_corr
 
-    return _rowwise_corr(p_rank, r_rank, common & ok.values[:, None]).rename("rank_ic")
+    return _rowwise_corr(p_rank, r_rank, eligible).rename("rank_ic")
 
 
 def icir(ic: pd.Series) -> float:
@@ -59,13 +62,19 @@ def icir(ic: pd.Series) -> float:
 
 
 def quantile_returns(predictions: pd.DataFrame, n_quantiles: int = 5) -> pd.DataFrame:
-    """Mean realised return per prediction quantile, per date."""
-    df = predictions[["date", "prediction", "realised"]].dropna()
+    """Mean outcome per prediction quantile on shared finite pairs.
+
+    Ties retain input row order. Sorted groups differ in size by at most one;
+    at least twice ``n_quantiles`` finite pairs are required for each date.
+    """
+    df = predictions[["date", "prediction", "realised"]]
+    df = df.replace([np.inf, -np.inf], np.nan).dropna()
     if df.empty:
         return pd.DataFrame()
     ranks = df.groupby("date")["prediction"].rank(method="first")
     sizes = df.groupby("date")["prediction"].transform("size")
-    bucket = np.floor((ranks / sizes.replace(0, np.nan)) * n_quantiles).clip(upper=n_quantiles - 1)
+    # Match factor quantiles: ten names in five groups means two names in each.
+    bucket = np.floor((ranks - 1.0) * n_quantiles / sizes.replace(0, np.nan))
 
     grouped = df.groupby("date")
     out = pd.DataFrame(index=sorted(df["date"].unique()))

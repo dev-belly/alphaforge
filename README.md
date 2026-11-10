@@ -205,6 +205,12 @@ evaluation metric; the portfolio uses a fixed `portfolio.assumed_ic` set before
 the run. Using the full evaluation IC at earlier rebalances would leak future
 test returns.
 
+Since the [2026-11-09 model-evaluation correction](docs/modules/factor_research.md#model-evaluation-alignment-2026-11-09),
+Rank-IC ranks only shared finite prediction/outcome pairs, and model quantiles
+use the same balanced boundaries as factor diagnostics. Missing or infinite
+pairs do not satisfy sample minimums. The archived sample's model diagnostics
+retain their recorded source version; rerun before comparing across versions.
+
 Both buffer settings count supplied trading sessions, matching the forward
 label's row horizon. Historical published runs used calendar-day buffers;
 see the [protocol correction](docs/research-comparison.md) before interpreting
