@@ -741,16 +741,7 @@ them as market insight. Full walk-through: [`research/case_study.md`](research/c
   [Research Copilot](docs/modules/ai_agent.md), [Data & Quality](docs/modules/data.md),
   [API](docs/modules/api.md).
 * **Case study** (real engine output on synthetic data): [research/case_study.md](research/case_study.md).
-* **Interview Q&A** (20 grounded questions): [research/interview_qa.md](research/interview_qa.md).
 * **Final engineering report**: [docs/FINAL_ENGINEERING_REPORT.md](docs/FINAL_ENGINEERING_REPORT.md).
-
-## Interview prep
-
-[`research/interview_qa.md`](research/interview_qa.md) answers 20 likely
-interview questions — look-ahead guards, walk-forward CV, gross-vs-net costs,
-FDR factor screening, Ledoit-Wolf shrinkage, the infeasibility ladder, and how
-the copilot stays non-hallucinating — each mapped to the source file that
-implements it.
 
 ## Contributing
 

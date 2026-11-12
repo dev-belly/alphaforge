@@ -9,11 +9,10 @@
 > Institutional Quant Research & Portfolio Engineering Platform
 > Repo: `dev-belly/alphaforge` (public) · Python 3.11 · pandas 3 · NumPy 2 · CVXPY (CLARABEL) · FastAPI · Streamlit · pytest · ruff
 
-This report is written for two audiences: (a) an engineer reviewing the GitHub,
-and (b) a candidate preparing to defend the project in a quant interview. Every
-number in **§7 Performance Results** comes from a real, reproducible run on the
-shipped *synthetic sample* dataset — nothing is fabricated (see §8 for the honest
-limits of that data).
+This historical report describes the engineering design and the recorded
+synthetic sample run. The results in **§7 Performance Results** retain that
+run's original source version; the correction at the top of this report and
+the data limitations in §8 govern their interpretation.
 
 ---
 
@@ -222,63 +221,6 @@ python scripts/run_real_backtest.py --provider eastmoney --start 2018-01-01 --en
 ```
 
 Docker: `docker compose up` starts API + Dashboard.
-
----
-
-## 11. Interview Talking Points — 20+ questions a reviewer will ask
-
-For each, the knowledge area you should be ready to explain (the code already
-implements it; learn the *why*, not just the *what*).
-
-1. **How do you prevent look-ahead bias in factor/backtest code?**
-   → `shift(-H)` forward returns, `execution_lag_days`, signal≠execution date.
-2. **Why is `train_test_split(shuffle=True)` wrong for time series, and what did
-   you use instead?** → walk-forward CV, purge + embargo, expanding/rolling.
-3. **Explain purge and embargo in walk-forward.** → labels still forming leak;
-   drop last `H` train rows, embargo gap after.
-4. **How is your portfolio optimisation formulated? Show the objective.** →
-   max `μᵀw − λwᵀΣw` (or max-Sharpe), constraints long-only/weight/industry/
-   turnover; CVXPY/CLARABEL.
-5. **Why mean-variance and not just picking top factors?** → diversification,
-   covariance, concentration control.
-6. **How do you estimate the covariance matrix, and why Ledoit-Wolf?** → sample
-   is noisy/unstable; shrinkage pulls toward structured estimator; EWMA for
-   regime.
-7. **Explain the multi-factor risk model `Σ = B F Bᵀ + D`.** → market + industry
-   + style exposures, specific variance; what each term captures.
-8. **What is Euler risk contribution and why does it sum to total variance?**
-   → `contrib_k = w_k·∂σ²/∂w_k`; marginal × weight; additivity of quadratic form.
-9. **How do you attribute portfolio risk to factors vs specific?** → component
-   contributions; style vs industry vs market vs specific.
-10. **How are transaction costs modelled, and why report gross AND net?** →
-    commission + bid-ask + slippage + market impact; costs reduce realised NAV,
-    so net must be shown honestly.
-11. **What is the difference between Sharpe, Sortino, Calmar, IR, TE? When to use
-    each?** → excess-return/vol, downside-dev, return/MaxDD, active/TE.
-12. **How do you annualise daily returns and vol, and what is the trap?** →
-    ×√252, never ×√365; wrong factor inflates vol/CAGR.
-13. **What is IC / Rank-IC / ICIR, and which do you trust more?** → rank-robust to
-    outliers; ICIR = mean IC / std IC (stability).
-14. **Why cross-sectional expected return, not "predict up/down"?** → ranking is
-    more robust; classification throws away magnitude.
-15. **How do you handle survivorship bias?** → force-liquidate delisted; document
-    current-membership limitation for live data.
-16. **What is Brinson attribution and its three terms?** → allocation + selection
-    + interaction; note the two-term vs three-term approximation gap.
-17. **How does the risk model deal with missing market cap / fundamentals?**
-    → falls back to equal-weight / price-based style factors (eastmoney path).
-18. **Explain your market-regime module.** → Bull/Bear × High/Low-Vol; per-regime
-    return stats; regime-conditional factor behaviour.
-19. **How does the AI copilot avoid hallucinating?** → tool-calling only; answers
-    derived from real `ToolResult`s; LLM optional.
-20. **What are the limitations of your backtest vs production?** → costs are
-    parametric, fills are close-to-close, no intraday, no corporate-action
-    micro-structure.
-21. **How is the code structured for reproducibility?** → fixed seed, config-
-    driven, deterministic sample data, CI on 3 Python versions.
-22. **How would you make this production-grade?** → point-in-time fundamentals,
-    true historical constituents, broker cost model, intraday execution,
-    parameter stability / deflated-Sharpe, paper-trading validation.
 
 ---
 
