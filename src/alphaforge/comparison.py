@@ -10,6 +10,7 @@ import json
 import math
 import platform
 from dataclasses import replace
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ import sklearn
 
 from alphaforge.backtest.engine import BacktestConfig, BacktestEngine
 from alphaforge.backtest.metrics import performance_stats
+from alphaforge.models.audit import build_split_audit, verify_split_audit
 from alphaforge.models.evaluation import evaluate_predictions
 from alphaforge.models.pipeline import AlphaModelPipeline, signal_panel
 
@@ -116,9 +118,12 @@ def run_comparison(
     if not synthetic and not assurance:
         raise ValueError("Real-data comparisons need an explicit source assurance record")
     dataset, panel = state.dataset, state.panel
+    config = copy.deepcopy(state.config)
+    split_audit = build_split_audit(
+        dataset, panel.dates, AlphaModelPipeline.from_config(dataset, config).split_config
+    )
     output = Path(destination)
     output.mkdir(parents=True, exist_ok=True)
-    config = copy.deepcopy(state.config)
     reference = None
     cases, forecasts, folds = [], {}, []
     daily: list[dict[str, Any]] = []
@@ -138,6 +143,12 @@ def run_comparison(
             cfg["model"]["params"] = MODEL_PARAMS[model_type]
             wf = AlphaModelPipeline.from_config(inputs, cfg).run(model_type)
             predictions = wf.predictions
+            expected_folds = {fold["fold"]: fold["test_samples"] for fold in split_audit["folds"]}
+            actual_folds = {
+                int(key): int(value) for key, value in predictions.groupby("fold").size().items()
+            }
+            if actual_folds != expected_folds:
+                raise ValueError("Comparison forecasts omit or duplicate audited fold samples")
             if reference is None:
                 reference = predictions
             validate_coverage(reference, predictions)
@@ -249,6 +260,7 @@ def run_comparison(
         )
     summary = _clean(
         {
+            "schema_version": 2,
             "data_kind": "synthetic" if synthetic else "exploratory_real_market",
             "source_assurance": assurance,
             "dataset_sha256": dataset_digest(dataset),
@@ -263,7 +275,10 @@ def run_comparison(
             "protocol": {
                 "seeds": list(seeds),
                 "model_params": MODEL_PARAMS,
-                "walk_forward": config["model"]["walk_forward"],
+                "walk_forward": split_audit["walk_forward"],
+                "split_unit": "supplied_trading_sessions",
+                "label_calendar": "original_market_panel",
+                "label_boundary": "last training label ends strictly before the first test session",
                 "backtest": config["backtest"],
                 "cost": config["cost"],
                 "cost_multipliers": list(cost_multipliers),
@@ -278,6 +293,13 @@ def run_comparison(
                 "numpy": np.__version__,
                 "pandas": pd.__version__,
                 "scikit_learn": sklearn.__version__,
+                **{name: version(name) for name in ("lightgbm", "scipy", "pyarrow")},
+            },
+            "source_code_sha256": {
+                str(path.relative_to(Path(__file__).parent)): hashlib.sha256(
+                    path.read_bytes()
+                ).hexdigest()
+                for path in sorted(Path(__file__).parent.rglob("*.py"))
             },
             "limitations": [
                 "Seed variation is not market sampling uncertainty or proof of tradable alpha.",
@@ -291,6 +313,9 @@ def run_comparison(
     )
     (output / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8"
+    )
+    (output / "split_audit.json").write_text(
+        json.dumps(split_audit, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8"
     )
     frame.to_csv(output / "metrics.csv", index=False, lineterminator="\n")
     pd.DataFrame(folds).to_csv(output / "folds.csv", index=False, lineterminator="\n")
@@ -314,10 +339,18 @@ def run_comparison(
 Models, the fixed momentum baseline and equal-weight baseline share dates, outcomes, execution lag and cost rules.</p>
 <aside>{"<br>".join(html.escape(note) for note in notes)}</aside>
 <h2>All methods and cost scenarios</h2><div class="scroll"><table><tr><th>Method</th><th>Costs</th><th>Runs</th><th>Net CAGR</th><th>Net Sharpe mean ± seed std</th><th>Max drawdown</th></tr>{table}</table></div>
+<p>Trading-session split, checked before fitting: each training label ends before its test block. <a href="split_audit.json">Inspect every fold and both calendars</a>.</p>
 <p><a href="summary.json">Source identity, exact protocol and all runs</a> · <a href="metrics.csv">Metrics CSV</a> · <a href="folds.csv">Fold results</a> · <a href="daily_returns.csv.gz">Daily returns (gzip CSV)</a> · <a href="manifest.json">Hashes</a></p>
 <p>This is a protocol comparison. Its real-market variant remains exploratory until the declared source limitations are resolved. No test result selects a model or seed for deployment.</p></main></html>"""
     (output / "index.html").write_text(report, encoding="utf-8")
-    names = ("summary.json", "metrics.csv", "folds.csv", "daily_returns.csv.gz", "index.html")
+    names = (
+        "summary.json",
+        "metrics.csv",
+        "folds.csv",
+        "daily_returns.csv.gz",
+        "index.html",
+        "split_audit.json",
+    )
     manifest = {
         "dataset_sha256": summary["dataset_sha256"],
         "files_sha256": {
@@ -339,13 +372,31 @@ def verify_comparison(directory: str | Path):
     """Recompute portfolio headlines from exported returns, without fitting models."""
     directory = Path(directory)
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
     names = {"summary.json", "metrics.csv", "folds.csv", "daily_returns.csv.gz", "index.html"}
+    if summary.get("schema_version") == 2:
+        names.add("split_audit.json")
+    elif "schema_version" in summary:
+        raise ValueError("Unsupported comparison schema")
     if set(manifest["files_sha256"]) != names:
         raise ValueError("Unexpected comparison artifact inventory")
     for name, expected in manifest["files_sha256"].items():
         if hashlib.sha256((directory / name).read_bytes()).hexdigest() != expected:
             raise ValueError(f"Comparison artifact digest mismatch: {name}")
-    summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+    audited = None
+    if summary.get("schema_version") == 2:
+        audit = json.loads((directory / "split_audit.json").read_text(encoding="utf-8"))
+        audited = verify_split_audit(audit)
+        for key in ("samples", "oos_forecasts", "forecast_start", "forecast_end"):
+            if summary["dataset"][key] != audited[key]:
+                raise ValueError(f"Comparison dataset {key} disagrees with split audit")
+        if (
+            summary["dataset"]["horizon_sessions"] != audit["label_horizon_sessions"]
+            or summary["protocol"]["walk_forward"] != audit["walk_forward"]
+            or summary["protocol"].get("split_unit") != "supplied_trading_sessions"
+            or summary["protocol"].get("label_calendar") != "original_market_panel"
+        ):
+            raise ValueError("Comparison protocol disagrees with split audit")
     dataset_sha256 = manifest.get("dataset_sha256")
     if not isinstance(dataset_sha256, str) or summary.get("dataset_sha256") != dataset_sha256:
         raise ValueError("Comparison dataset identity mismatch")
@@ -462,4 +513,7 @@ def verify_comparison(directory: str | Path):
         "cases": len(verified_cases),
         "return_dates_per_case": len(shared_dates),
         "dataset_sha256": manifest["dataset_sha256"],
+        **(
+            {"audited_folds": audited["folds"], "split_unit": "trading_sessions"} if audited else {}
+        ),
     }

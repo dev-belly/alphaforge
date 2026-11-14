@@ -1,5 +1,7 @@
 # AlphaForge
 
+[中文项目说明](README.zh-CN.md) · [Trading-session refit](docs/research-comparison.md) · [All 22 corrected-protocol cases](https://dev-belly.github.io/alphaforge/experiments/real-sp500-session-v2/)
+
 [Real-market comparison](docs/research-comparison.md): frozen data, shared
 walk-forward coverage, equal-weight and momentum baselines, three model seeds,
 one explicit size-feature ablation, and 22 base/doubled-cost cases. Source
@@ -213,7 +215,7 @@ retain their recorded source version; rerun before comparing across versions.
 
 Both buffer settings count supplied trading sessions, matching the forward
 label's row horizon. Historical published runs used calendar-day buffers;
-see the [protocol correction](docs/research-comparison.md) before interpreting
+see the [new session-split refit and preserved archive](docs/research-comparison.md) before interpreting
 their reported out-of-sample results.
 
 ## Risk model

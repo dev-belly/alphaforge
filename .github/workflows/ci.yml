@@ -43,7 +43,9 @@ jobs:
         run: python scripts/check_docs.py
 
       - name: Independently verify the saved real-market comparison
-        run: python scripts/verify_comparison.py docs/experiments/real-sp500
+        run: |
+          python scripts/verify_comparison.py docs/experiments/real-sp500
+          python scripts/verify_comparison.py docs/experiments/real-sp500-session-v2
 
       - name: Unit & regression tests (fast)
         run: pytest -m "not slow"

@@ -1,0 +1,18 @@
+# Linux CPython 3.12 environment used for the recorded session-split refit.
+# Install with: python -m pip install -e ".[viz]" -c research/requirements-session-refit.txt
+numpy==2.3.5
+pandas==2.2.3
+scipy==1.18.1
+statsmodels==0.15.0
+scikit-learn==1.8.0
+lightgbm==4.7.0
+cvxpy==1.9.3
+duckdb==2.0.0
+pyarrow==26.0.1
+PyYAML==6.0.3
+loguru==0.8.0
+pydantic==2.14.3
+pydantic-settings==2.16.3
+requests==2.34.2
+matplotlib==3.11.2
+plotly==7.1.0

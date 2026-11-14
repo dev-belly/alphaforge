@@ -19,6 +19,7 @@ nav:
   - Home: index.md
   - Reproduce the sample: sample-run.md
   - Real-market comparison: research-comparison.md
+  - 中文研究简报: research-comparison.zh-CN.md
   - Validation & limitations: validation.md
   - Architecture: architecture.md
   - Quickstart: quickstart.md
