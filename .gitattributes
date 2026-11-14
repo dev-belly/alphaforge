@@ -1,2 +1,3 @@
 # Frozen evidence is hashed as bytes; checkouts must not rewrite line endings.
 docs/experiments/real-sp500/** -text
+docs/experiments/real-sp500-session-v2/** -text

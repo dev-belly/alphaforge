@@ -11,6 +11,8 @@ from alphaforge.data.assurance import audit_local_dataset
 from alphaforge.pipeline import ResearchPipeline
 from alphaforge.utils.config import Config
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -23,6 +25,8 @@ def main():
     parser.add_argument("--out", type=Path, default=Path("research/comparison"))
     parser.add_argument("--require-complete-sources", action="store_true")
     args = parser.parse_args()
+    if Path.cwd().resolve() != REPO_ROOT:
+        parser.error(f"Run comparisons from the repository root: {REPO_ROOT}")
     cfg = Config.load(
         args.config,
         overrides={

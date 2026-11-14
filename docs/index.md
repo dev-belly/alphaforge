@@ -1,5 +1,13 @@
 # Research you can inspect
 
+## New: a six-fold trading-session refit
+
+Same frozen supervised dataset, five methods, three model seeds and two cost
+scenarios. Inspect each training label's end date before reading the returns.
+
+[中文研究简报](research-comparison.zh-CN.md){ .md-button .md-button--primary }
+[All 22 refitted cases](experiments/real-sp500-session-v2/index.html){ .md-button }
+
 <div class="hero" markdown>
 
 ## From a data panel to a portfolio report

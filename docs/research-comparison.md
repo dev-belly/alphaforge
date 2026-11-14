@@ -1,59 +1,88 @@
-# Real-market comparison with declared source limits
+# Real-market comparison with audited trading-session splits
 
-[Open the complete comparison](experiments/real-sp500/index.html)
+[Open all 22 refitted cases](experiments/real-sp500-session-v2/index.html) · [中文研究简报](research-comparison.zh-CN.md)
 
-**Protocol correction (2026-10-24):** the archived runs below used calendar-day
-purge/embargo buffers for labels measured in trading sessions. Those buffers
-could leave training labels that extend into the test period. The splitter now
-counts supplied trading sessions. The archived artifacts and numbers are
-preserved as historical records; they have not been refit under the corrected
-protocol and should not be treated as leakage-free out-of-sample evidence.
-
-This exploratory experiment uses 1,173,649 real mirrored price rows, a frozen
-840,736-row model dataset with 24 usable features, and 551,698 shared out-of-sample
-forecasts. It compares equal weight, a fixed 12–1 momentum signal, Ridge,
-LightGBM and Ridge without the explicit size predictor. Model runs use seeds
-11, 29 and 42; every method uses the same forecast coverage, dated outcomes,
-monthly rebalance, one-session execution lag and declared cost rules.
+The **2026-11-14 refit** trains every model under the corrected session-based
+purge/embargo rules and current finite-pair evaluation. Its four raw source
+hashes and supervised dataset digest match the original experiment:
+**840,736 rows, 24 usable features and 551,698 shared forecasts**. No test
+outcome selects parameters, a model or a seed for deployment.
 
 | At base assumed costs | Net CAGR | Net Sharpe | Maximum drawdown |
-| --- | --- | --- | --- |
-| Equal-weight baseline | 12.75% | 1.141 | −18.70% |
-| Single-momentum baseline | 11.38% | 0.871 | −23.40% |
-| Ridge | 12.85% | 1.005 | −22.06% |
-| LightGBM, seed mean | 18.23% | 1.337 | −21.46% |
-| Ridge without size predictor | 12.24% | 0.955 | −21.68% |
+| --- | ---: | ---: | ---: |
+| Equal-weight baseline | 12.75% | 1.141 | -18.70% |
+| Fixed 12–1 momentum | 11.38% | 0.871 | -23.40% |
+| Ridge | 12.77% | 1.009 | -21.65% |
+| LightGBM, three-seed mean | 17.07% | 1.252 | -22.10% |
+| Ridge without the explicit size predictor | 12.43% | 0.970 | -21.57% |
 
-These are the measured results of the declared protocol, **not estimates of
-tradable alpha**. In this sample Ridge has lower Sharpe than the simpler
-equal-weight baseline. Three LightGBM seeds show variation; deterministic Ridge
-does not. All 22 seed/cost cases, including doubled-cost scenarios, are retained.
-Seed variation does not estimate uncertainty across market histories.
+Ridge does not improve Sharpe over the simpler equal-weight baseline in this
+sample. LightGBM's doubled-cost mean CAGR is **16.36%**, with Sharpe **1.206**.
+Its base-cost Sharpe seed standard deviation is **0.034**; seed variation is not
+uncertainty across market histories. All three predefined seeds (11, 29, 42),
+both cost scenarios, baselines and the size-feature ablation remain published.
+
+## Audit the actual training boundaries
+
+The supervised dataset and the original market panel can have different date
+coverage. The new [split audit](experiments/real-sp500-session-v2/split_audit.json)
+retains the original market sessions, supervised sample counts and every fold's
+actual boundaries. It computes each last training label's endpoint on the
+**original 21-session label calendar**, and requires it to finish strictly
+before the first test session.
+
+For the first fold the last training observation is **2013-11-29**; its label
+finishes on **2013-12-31** and testing starts on **2014-01-02**. All six folds
+retain 21 market sessions between the final training observation and first
+test observation. Before fitting comparison models, the builder rejects
+overlapping labels, overlapping test folds and folds too small for the model.
+Every model must emit the audited sample count in every fold.
+
+The verifier reconstructs the saved date masks, label endpoints and sample
+denominators, then independently recomputes portfolio headlines and aggregates
+from saved daily returns. It checks internal consistency, not source truth or
+an external signature.
 
 ## Source and comparison boundaries
 
-The source lists current S&P 500 members with entry dates, without complete
-removed/delisted histories. Fundamentals use assumed publication lags, and
-market capitalization is unavailable, so size uses a dollar-volume proxy.
-Historical source vintages and classification changes are not independently
-verified. These limits are recorded in the downloadable JSON and report banner.
-`--require-complete-sources` rejects the bundled mirror's incomplete source
-contract rather than treating real prices as proof of point-in-time correctness.
+The source is 1,173,649 mirrored price rows, with current index members and entry
+dates but incomplete removals/delistings. Fundamental availability uses an
+assumed publication lag; actual market capitalization is missing and size uses
+a dollar-volume proxy. Historical source vintages and industry classification
+changes are not independently verified. The usable model features in this run
+are the 24 price/volume-derived features named in the saved JSON.
 
-The forecast window is January 2014–October 2019; portfolio results cover January
-2015–October 2019. The dataset ends November 14, 2019, where the benchmark source
-ends. Benchmark coverage is checked for every price session. Forecast failures,
-nonfinite predictions and differences in forecast coverage cannot be silently
-dropped from a comparison.
+Forecasts cover 2014-01-02–2019-10-16. Portfolio returns cover
+2015-01-02–2019-10-31, with **1,217 daily returns per case**. The source ends
+2019-11-14 where SPY benchmark coverage ends. It is a historical experiment;
+SPY is a price-return proxy, not a dividend-inclusive index benchmark.
 
-All score-based portfolios equal weight their top 50 eligible names, with
-symbol-based tie breaking and no optimizer. The equal-weight baseline holds all
-forecastable eligible names, so its diversification differs. The size ablation
-removes only `log_market_cap` from model inputs; it does not undo earlier size
-neutralization. This experiment neither tunes parameters nor chooses a seed or
-model for deployment based on the held-out results.
+Score strategies equally weight their top 50 eligible names, with symbol tie
+breaking and no optimizer. The equal-weight baseline holds all forecastable
+eligible names, so diversification differs. Rebalance is monthly with a
+one-session execution lag. Base costs are commission 2bp, slippage 5bp and
+impact coefficient 10bp, with a 10% participation cap. These are assumptions,
+not measured fills. Removing the explicit size predictor does not remove
+earlier size neutralization.
+
+The data retain the same identity, but new/old metric differences are not a
+controlled estimate of one fix: evaluation code and dependency versions also
+changed. These results are exploratory rather than estimates of tradable alpha.
+`--require-complete-sources` continues to reject the incomplete mirror contract.
 
 ## Reproduction and verification
+
+Use CPython 3.12 and the recorded
+[research dependency constraints](https://github.com/dev-belly/alphaforge/blob/main/research/requirements-session-refit.txt).
+Run from the repository root:
+
+```bash
+python -m pip install -e ".[viz]" -c research/requirements-session-refit.txt
+python scripts/verify_comparison.py docs/experiments/real-sp500-session-v2
+```
+
+Verification uses saved evidence, without downloading prices or refitting.
+To refit the declared grid:
 
 ```bash
 python scripts/fetch_real_data.py --start 2010-01-01 --end 2019-11-14
@@ -61,24 +90,21 @@ python scripts/run_comparison.py --out research/comparison
 python scripts/verify_comparison.py research/comparison
 ```
 
-The builder records raw/processed file hashes and source properties in
-`DATA_ASSURANCE.json`. Comparison outputs include dataset identity, exact
-parameters, per-fold metrics, per-run metrics, daily returns and an artifact
-manifest. The verifier recomputes portfolio headlines and seed aggregates from
-the saved return CSV without refitting models. Repeat with the recorded library
-versions; vendor mirror updates can change source hashes.
+Compare the new assurance record's `raw_sha256` map with
+`summary.json:source_assurance.raw_sha256` before calling a fresh download the
+same source snapshot. Mirror URLs can change. Parquet byte hashes may differ
+with writer versions; this refit's raw files and supervised table match.
+The saved summary records parameters, actual split settings, dependency
+versions and research-module file hashes.
 
-Run real-data research commands from the repository root so the audited local
-tables are the same tables that the provider reads. `run_real_research.py`
-rejects a different working directory before loading data; `--help` remains
-available from any directory.
+## Preserved archive
 
-The published bundle is a byte-hashed record. Its `.gitattributes` rule disables
-Git text conversion for `docs/experiments/real-sp500/`, preserving the original
-CSV, JSON, HTML and gzip bytes with both LF and CRLF checkout settings. Do not
-rewrite the manifest to accommodate a changed checkout: the verifier continues
-to reject altered bytes and independently checks the financial headlines.
+The [pre-correction bundle](experiments/real-sp500/index.html) remains
+byte-identical at its original path. It used calendar-day buffers for
+trading-session labels and should not be treated as valid evidence of
+training/test isolation. The [synthetic sample](sample-run.md) is a separate
+archived run with its own source-version boundary.
 
-Real runs default to `research/real_runs` and comparisons to
-`research/comparison`. They are separate from the published synthetic
-`research/case_study.md` and its JSON; that case retains its synthetic identity.
+Both frozen comparison directories disable Git line-ending conversion.
+Current CI verifies the old return evidence and the new audited bundle on
+Linux and Windows; source refitting is separate from saved-output replay.

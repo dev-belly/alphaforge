@@ -7,12 +7,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).parents[2] / "scripts/run_real_research.py"
 
 
-def test_real_research_help_remains_available_from_another_directory(tmp_path):
+@pytest.mark.parametrize("script", [SCRIPT, SCRIPT.with_name("run_comparison.py")])
+def test_real_research_help_remains_available_from_another_directory(tmp_path, script):
     result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--help"],
+        [sys.executable, str(script), "--help"],
         cwd=tmp_path,
         text=True,
         capture_output=True,
@@ -23,12 +26,13 @@ def test_real_research_help_remains_available_from_another_directory(tmp_path):
     assert "--require-complete-sources" in result.stdout
 
 
-def test_real_research_rejects_a_foreign_working_directory_before_loading_data(tmp_path):
+@pytest.mark.parametrize("script", [SCRIPT, SCRIPT.with_name("run_comparison.py")])
+def test_real_research_rejects_a_foreign_working_directory_before_loading_data(tmp_path, script):
     foreign_data = tmp_path / "data/processed"
     foreign_data.mkdir(parents=True)
     (foreign_data / "prices.parquet").write_bytes(b"a different dataset must never be read")
     result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--no-json"],
+        [sys.executable, str(script)],
         cwd=tmp_path,
         text=True,
         capture_output=True,
