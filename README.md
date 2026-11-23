@@ -34,6 +34,15 @@ results across runs.
 
 [Documentation](https://dev-belly.github.io/alphaforge/) · [Sample report](https://dev-belly.github.io/alphaforge/sample/research_report.html) · [Reproduction record](https://dev-belly.github.io/alphaforge/sample-run/)
 
+## Research workbench
+
+Compare all 22 saved market experiments by model, seed and costs and inspect the true training-label boundaries.
+
+[Workbench files](docs/workbench/) · [Open the online workbench](https://dev-belly.github.io/alphaforge/workbench/)
+
+Open `docs/workbench/index.html` from a checkout to filter, drill into a record, and export CSV or JSON offline.
+Run `python docs/workbench/build_data.py --check` to verify the browser snapshot.
+
 ## Features
 
 | Layer | What it does |
