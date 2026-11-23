@@ -4,6 +4,7 @@ import argparse
 import csv
 import hashlib
 import json
+from decimal import Decimal
 from pathlib import Path
 
 
@@ -69,6 +70,15 @@ def optional_float(value):
     return float(value) if value else None
 
 
+def model_seed(value):
+    if not value.strip():
+        return None
+    number = Decimal(value)
+    if not number.is_finite() or number != number.to_integral_value():
+        raise ValueError(f"Invalid model seed: {value}")
+    return int(number)
+
+
 def build():
     rows = read_csv(f"{EXPERIMENT}/metrics.csv")
     split = read_json(f"{EXPERIMENT}/split_audit.json")
@@ -79,18 +89,25 @@ def build():
         "lightgbm": "LightGBM",
         "ridge_without_size_feature": "Ridge（移除规模特征）",
     }
-    scores = read_csv(f"{EXPERIMENT}/folds.csv")
+    folds = {}
+    for score in read_csv(f"{EXPERIMENT}/folds.csv"):
+        model = (score["method"], model_seed(score["seed"]))
+        fold = int(score["fold"])
+        values = folds.setdefault(model, {})
+        if fold in values:
+            raise ValueError(f"Duplicate fold {fold} for {model}")
+        values[fold] = float(score["rank_ic_mean"])
+    expected_folds = {row["fold"] for row in split["folds"]}
     records = []
     for row in rows:
         method = row["method"]
-        seed = str(int(float(row["seed"]))) if row["seed"] else "基准"
+        seed_key = model_seed(row["seed"])
+        seed = str(seed_key) if seed_key is not None else "基准"
         cost = int(float(row["cost_multiplier"]))
-        identifier = f"{method}-{seed if row['seed'] else 'baseline'}-{cost}"
-        picks = [
-            metric
-            for metric in scores
-            if metric["method"] == method and metric["seed"] == row["seed"]
-        ]
+        identifier = f"{method}-{seed if seed_key is not None else 'baseline'}-{cost}"
+        picks = folds.get((method, seed_key), {})
+        if seed_key is not None and picks.keys() != expected_folds:
+            raise ValueError(f"Incomplete fold metrics for {method} seed {seed}")
         details = [
             fact("净年化收益", float(row["cagr"]), "percent"),
             fact("净年化波动", float(row["ann_vol"]), "percent"),
@@ -117,11 +134,8 @@ def build():
                 "facts": details,
                 "charts": {
                     "folds": [
-                        {
-                            "label": "窗口 " + str(int(metric["fold"]) + 1),
-                            "value": float(metric["rank_ic_mean"]),
-                        }
-                        for metric in picks
+                        {"label": f"窗口 {fold + 1}", "value": value}
+                        for fold, value in sorted(picks.items())
                     ]
                 },
                 "related": "split",
@@ -193,7 +207,8 @@ def build():
                 "title": "所选模型的逐窗口 Rank IC",
                 "mode": "detail",
                 "format": "fixed4",
-                "caption": "预测模型的样本外秩相关。规则型基准无此指标。",
+                "caption": "对照六个测试窗口的样本外秩相关。零线标出正负方向。",
+                "empty": "选择预测模型以查看逐窗口 Rank IC。",
             },
         ],
         "related": {
@@ -205,6 +220,7 @@ def build():
         "sourceNote": "真实市场价格快照用于探索性比较。历史指数成分与披露可得时点存在口径缺口，成本按仓库实验假设计算。",
         "sources": [
             source("22 组组合指标", f"{EXPERIMENT}/metrics.csv"),
+            source("逐窗口 Rank IC", f"{EXPERIMENT}/folds.csv"),
             source("真实标签边界核查", f"{EXPERIMENT}/split_audit.json"),
             source("研究设计与局限", "docs/research-comparison.md"),
         ],
